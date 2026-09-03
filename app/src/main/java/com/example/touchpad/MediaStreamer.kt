@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference
  * 传输:独立 TCP 连接(复用 9527 端口),先发一行 `MEDIA <token>` 认证,之后是二进制帧:
  *   [1 字节 type][4 字节大端 length][length 字节 payload]  (type=1 视频 / type=2 音频)
  *
- * 相机采集:硬件 JPEG 在这台 OPPO(ColorOS/MTK)上只有 1080p 以上的大档,降不到 640x480,
+ * 相机采集:部分 ColorOS/MTK 机型的硬件 JPEG 只有 1080p 以上的大档,降不到 640x480,
  * 会把带宽占满导致掉帧(实测每帧 ~590KB)。所以改为 **YUV_420_888 采集 640x480 +
  * 手机端软件压 JPEG(Q75,每帧 ~30-50KB)**,既小又省带宽发热。AudioRecord 采集麦克风。
  * 权限由 MainActivity 保证。
@@ -63,6 +63,7 @@ class MediaStreamer(private val context: Context) {
     private var imageReader: ImageReader? = null
     private var captureSession: CameraCaptureSession? = null
     @Volatile private var cameraRunning = false
+    @Volatile private var flipH = false              // 摄像头画面左右翻转(照镜子 / 把前置拍的书翻正)
     private var cameraFacing = CameraCharacteristics.LENS_FACING_FRONT
     private val latestNv21 = AtomicReference<ByteArray?>(null)   // 最新一帧 YUV(NV21 排列,待软件压 JPEG)
     private val latestJpeg = AtomicReference<ByteArray?>(null)   // 最新一帧已压好的 JPEG(发送 + 预览共用)
@@ -178,7 +179,7 @@ class MediaStreamer(private val context: Context) {
             }
             val chars = cm.getCameraCharacteristics(id)
             val map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            // 这台机硬件 JPEG 没有 ≤640x480 的档(最小约 1080p),只能走 YUV 采集 + 软件压 JPEG
+            // 这类机型硬件 JPEG 没有 ≤640x480 的档(最小约 1080p),只能走 YUV 采集 + 软件压 JPEG
             val size = chooseSize(map, TARGET_W, TARGET_H, ImageFormat.YUV_420_888)
             frameW = size.width
             frameH = size.height
@@ -241,6 +242,14 @@ class MediaStreamer(private val context: Context) {
             startCamera()
         }
     }
+
+    /** 左右翻转(镜像)开关:开 = 画面左右颠倒。前置摄像头看书/文档时把字翻正。返回翻转后的状态。 */
+    fun toggleFlip(): Boolean {
+        flipH = !flipH
+        return flipH
+    }
+
+    fun isFlipHorizontal(): Boolean = flipH
 
     private fun pickCamera(cm: CameraManager): String? {
         val ids = cm.cameraIdList
@@ -334,7 +343,9 @@ class MediaStreamer(private val context: Context) {
         }
     }
 
-    /** 把 YUV_420_888 的 Image 拷成 NV21 排列(Y 全平面 + VU 交错)。处理 rowStride/pixelStride。 */
+    /** 把 YUV_420_888 的 Image 拷成 NV21 排列(Y 全平面 + VU 交错)。处理 rowStride/pixelStride。
+     *  flipH 为真时左右镜像:Y/U/V 各行按相反列序写,色度块列也反转(镜像不改变 Cb/Cr 关系,
+     *  所以 V/U 不互换)。预览与发送共用同一份 NV21,观感一致。不翻转时走原快路径,零开销。 */
     private fun yuvToNv21(img: android.media.Image): ByteArray {
         val w = img.width
         val h = img.height
@@ -342,17 +353,26 @@ class MediaStreamer(private val context: Context) {
         val y = img.planes[0]
         val u = img.planes[1]
         val v = img.planes[2]
+        val flip = flipH
 
         // ---- Y 平面 ----
         val yBuf = y.buffer
-        if (y.rowStride == w) {
+        if (!flip && y.rowStride == w) {
             yBuf.get(out, 0, w * h)
-        } else {
+        } else if (!flip) {
             var o = 0
             for (r in 0 until h) {
                 yBuf.position(r * y.rowStride)
                 yBuf.get(out, o, w)
                 o += w
+            }
+        } else {
+            // 镜像:每行按相反列序放
+            val yRow = y.rowStride
+            for (r in 0 until h) {
+                yBuf.position(r * yRow)
+                val row = r * w
+                for (c in 0 until w) out[row + (w - 1 - c)] = yBuf.get()
             }
         }
 
@@ -366,7 +386,7 @@ class MediaStreamer(private val context: Context) {
         val uRow = u.rowStride
         val vRow = v.rowStride
         var o = w * h
-        if (uPs == 1 && vPs == 1 && uRow == cw && vRow == cw) {
+        if (!flip && uPs == 1 && vPs == 1 && uRow == cw && vRow == cw) {
             // 常见快路径:I420 平面式(Y 独立 + U/V 各一平面,pixelStride=1)
             for (r in 0 until ch) {
                 uBuf.position(r * cw)
@@ -376,7 +396,7 @@ class MediaStreamer(private val context: Context) {
                     out[o++] = uBuf.get()
                 }
             }
-        } else {
+        } else if (!flip) {
             // 通用路径:逐个像素按 stride 取(个别设备色度可能带 padding / pixelStride=2)
             for (r in 0 until ch) {
                 for (c in 0 until cw) {
@@ -384,6 +404,20 @@ class MediaStreamer(private val context: Context) {
                     vBuf.position(r * vRow + c * vPs)
                     out[o++] = vBuf.get()
                     out[o++] = uBuf.get()
+                }
+            }
+        } else {
+            // 镜像:色度平面逐列反转(块列 c → cw-1-c),V/U 对保持 V 在前
+            for (r in 0 until ch) {
+                val rowBase = w * h + 2 * (r * cw)
+                for (c in 0 until cw) {
+                    uBuf.position(r * uRow + c * uPs)
+                    vBuf.position(r * vRow + c * vPs)
+                    val vv = vBuf.get()
+                    val uu = uBuf.get()
+                    val d = rowBase + 2 * (cw - 1 - c)
+                    out[d] = vv
+                    out[d + 1] = uu
                 }
             }
         }
@@ -564,7 +598,7 @@ class MediaStreamer(private val context: Context) {
         // 稳定的低帧率小画面远比忽高忽低的大画面流畅。PC 端 OBS 预览也同步调小。
         private const val TARGET_W = 640
         private const val TARGET_H = 480
-        // 实测 640x480 YUV+软压 在这台机就稳在 30fps(编码/sensor 上限,设 60 也到不了),就按 30 走
+        // 实测 640x480 YUV+软压 在 MTK 这类机型上稳在 30fps(编码/sensor 上限,设 60 也到不了),就按 30 走
         private const val CAP_FPS = 30
         private const val JPEG_QUALITY = 70   // 软件压 JPEG 质量:够清晰又够小,兼顾带宽/发热/编码耗时
         private const val NANOS_PER_SEC = 1_000_000_000L

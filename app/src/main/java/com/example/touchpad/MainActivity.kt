@@ -46,6 +46,7 @@ class MainActivity : Activity() {
     private lateinit var previewBox: FrameLayout
     private lateinit var previewImage: ImageView
     private lateinit var btnSwitchCamera: Button
+    private lateinit var btnFlipCamera: Button
     private lateinit var micIcon: ImageView
     private lateinit var micDot: View
     private lateinit var micSlash: ImageView
@@ -84,6 +85,7 @@ class MainActivity : Activity() {
         previewBox = findViewById(R.id.preview_box)
         previewImage = findViewById(R.id.preview_image)
         btnSwitchCamera = findViewById(R.id.btn_switch_camera)
+        btnFlipCamera = findViewById(R.id.btn_flip_camera)
         micIcon = findViewById(R.id.mic_icon)
         micDot = findViewById(R.id.mic_dot)
         micSlash = findViewById(R.id.mic_slash)
@@ -204,6 +206,11 @@ class MainActivity : Activity() {
                 screen.setFrame(jpeg, screenW, screenH)
             }
 
+            override fun onCursor(x: Int, y: Int) {
+                // 电脑回传的真实光标:让镜像箭头永远跟着它走,实体鼠标怎么挪都不会「对不上」
+                screen.setRemoteCursor(x, y)
+            }
+
             override fun onMediaCommand(cmd: String) {
                 when (cmd) {
                     "CAM 0" -> if (cameraOn) toggleCamera()
@@ -233,6 +240,12 @@ class MainActivity : Activity() {
         micIcon.setOnClickListener { toggleMic() }
         camIcon.setOnClickListener { toggleCamera() }
         btnSwitchCamera.setOnClickListener { mediaStreamer.switchCamera() }
+        btnFlipCamera.setOnClickListener {
+            // 左右翻转开关:开 = 照镜子(前置拍书把字翻正),再点还原。画面发到电脑/OBS 也一起翻。
+            val on = mediaStreamer.toggleFlip()
+            btnFlipCamera.text = getString(if (on) R.string.flip_camera_on else R.string.flip_camera)
+            toast(if (on) "画面已左右翻转(再点还原)" else "画面已还原")
+        }
         btnMinimize.setOnClickListener { setPanelMinimized(true) }
         btnRestorePanel.setOnClickListener { setPanelMinimized(false) }
         setupPanelGestures()
@@ -730,6 +743,10 @@ class MainActivity : Activity() {
         micSlash.visibility = if (micOn) View.GONE else View.VISIBLE
         camSlash.visibility = if (cameraOn) View.GONE else View.VISIBLE
         previewBox.visibility = if (cameraOn) View.VISIBLE else View.GONE
+        // 翻转状态灯跟着相机状态走:重开相机后仍显示上次的翻转开/关,不会闪回默认文案。
+        btnFlipCamera.text = getString(
+            if (mediaStreamer.isFlipHorizontal()) R.string.flip_camera_on else R.string.flip_camera
+        )
         if (!cameraOn) previewImage.setImageBitmap(null)
         // 让保活前台服务类型跟当前状态走:推摄像头/麦克风时带上 camera/microphone,
         // 系统当「正在录像/录音」→ ColorOS 不易再强停服务断 socket。
@@ -801,7 +818,7 @@ class MainActivity : Activity() {
 
     /** 触点是否落在面板上的按钮(切摄像头/最小化)上,是则让按钮处理点击。 */
     private fun isOnMediaButton(x: Float, y: Float): Boolean {
-        for (b in arrayOf<View>(micIcon, camIcon, btnSwitchCamera, btnMinimize)) {
+        for (b in arrayOf<View>(micIcon, camIcon, btnSwitchCamera, btnFlipCamera, btnMinimize)) {
             if (b.visibility == View.VISIBLE) {
                 val loc = IntArray(2)
                 b.getLocationOnScreen(loc)

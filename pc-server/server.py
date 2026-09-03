@@ -317,6 +317,27 @@ def abs_click(x, y, flags):
     user32.SendInput(2, events, ctypes.sizeof(INPUT))
 
 
+def get_cursor_stream_pos():
+    """读 Windows 真实光标位置,换算成「流式坐标」(与发给手机的 FRAME 分辨率一致)。
+
+    手机镜像据此画箭头:实体鼠标一挪,手机端箭头立刻跟着动,不再用手机本地猜的坐标。
+    非 Windows / 还没抓过屏(STREAM_W 未知)返回 None。
+    """
+    if not IS_WINDOWS or STREAM_W <= 0 or REAL_W <= 0:
+        return None
+    try:
+        p = POINT()
+        user32.GetCursorPos(ctypes.byref(p))
+        # 镜像只抓主屏;光标在副屏/越界时不上报(否则手机箭头会跑到画面外)
+        if p.x < 0 or p.y < 0 or p.x >= REAL_W or p.y >= REAL_H:
+            return None
+        sx = int(p.x * STREAM_W / REAL_W)
+        sy = int(p.y * STREAM_H / REAL_H)
+        return max(0, min(STREAM_W - 1, sx)), max(0, min(STREAM_H - 1, sy))
+    except Exception:
+        return None
+
+
 def _grab_screen_fast():
     """GDI BitBlt 直接抓整屏成 numpy(BGRA)再转 PIL RGB;比 PIL ImageGrab 快很多。
 
@@ -416,6 +437,35 @@ def stream_frames(conn, f, streaming, write_lock):
         dt = time.time() - t0
         if dt < slot:
             time.sleep(slot - dt)
+
+
+def cursor_loop(f, write_lock, alive):
+    """每连接守护线程:轮询真实光标位置,变了就发一行 `CP x y` 给手机镜像画箭头。
+
+    与 stream_frames 共用 write_lock,避免文本行和 FRAME 二进制帧互相交错。
+    位置没变就静默(几乎零带宽);alive 一旦清除立刻退出。
+    """
+    last = None
+    last_log = 0.0
+    while alive.is_set():
+        try:
+            pos = get_cursor_stream_pos()
+            if pos is not None and pos != last:
+                try:
+                    with write_lock:
+                        f.write("CP %d %d\n" % pos)
+                        f.flush()
+                    last = pos
+                    # 只作诊断:回传有变化时最多每 5 秒打一行,确认链路在走
+                    now = time.time()
+                    if now - last_log >= 5.0:
+                        last_log = now
+                        _log_line("[cursor] 回传 %d,%d" % pos)
+                except Exception:
+                    break
+        except Exception:
+            pass
+        alive.wait(0.08)   # ~12Hz 上报;镜像帧率 ≤24,足够跟手
 
 # ---------------------------------------------------------------------------
 # DPAPI 加密/解密(Windows 用户级加密,密钥绑定当前 Windows 账户)
@@ -929,6 +979,12 @@ def handle_client(conn, addr):
         streaming = threading.Event()
         write_lock = threading.Lock()
         _register_ctrl(f, write_lock)
+        # 光标回传线程:实体鼠标一挪,发 CP 让手机镜像的箭头跟着真实光标走。
+        cursor_alive = threading.Event()
+        cursor_alive.set()
+        threading.Thread(
+            target=cursor_loop, args=(f, write_lock, cursor_alive), daemon=True
+        ).start()
         while True:
             try:
                 line = _read_line(f)
@@ -1039,6 +1095,10 @@ def handle_client(conn, addr):
     except Exception as e:
         _emit("log", msg=f"会话异常: {e}")
     finally:
+        try:
+            cursor_alive.clear()   # 停掉光标回传线程,避免写已关闭的 socket
+        except Exception:
+            pass
         if prev_buttons:
             release_all_buttons()
         _unregister_ctrl(f)
@@ -1105,11 +1165,39 @@ class GuiApp:
         self._qr_photo = None  # 持引用防 GC
         root.title("手机触控板 — 电脑端")
         root.minsize(420, 540)
+        # 点右上角 X = 隐藏到后台,服务照跑;想彻底停请用主面板的「退出服务」。
+        root.protocol("WM_DELETE_WINDOW", self._on_close)
         if master_exists():
             self._build_login()
         else:
             self._build_setup_pin()
+        # 作为唯一实例时独占 9530:主窗口被 X 收起后,桌面图标仍能把主面板唤回来
+        start_show_ipc(self.show)
         self.root.after(100, self._poll)
+
+    def _on_close(self):
+        """用户点 X:只把主窗口藏起来,别退出进程 —— serve() 线程和手机连接都不受影响。"""
+        try:
+            self.root.withdraw()
+        except Exception:
+            pass
+
+    def show(self):
+        """从「超级终端」悬浮窗把主面板重新调到前台。"""
+        try:
+            self.root.deiconify()
+            self.root.lift()
+            self.root.attributes("-topmost", True)
+            self.root.after(200, lambda: self.root.attributes("-topmost", False))
+        except Exception:
+            pass
+
+    def _quit_service(self):
+        """唯一真正的退出入口:结束 mainloop → main() 返回 → 进程退出,服务与手机连接随之停止。"""
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
 
     def _clear_root(self):
         for w in self.root.winfo_children():
@@ -1200,6 +1288,16 @@ class GuiApp:
         self.cam_btn.pack(side="left")
         self.mic_btn.pack(side="left", padx=6)
         self.float_btn.pack(side="left")
+
+        # 提示 + 退出:点右上角 X 只是收起窗口,手机连接不断;想彻底停才用这个按钮
+        tk.Label(
+            self.root, fg="#666", font=("Microsoft YaHei", 9),
+            text="点右上角 X 只是收起本窗口,手机仍可继续控制;彻底退出请用下面按钮。"
+        ).pack(anchor="w", **pad)
+        tk.Button(
+            self.root, text="退出服务(断开手机,停止运行)", fg="#cc0000",
+            command=self._quit_service,
+        ).pack(anchor="w", **pad)
 
         # 配对码
         self.pin_var = tk.StringVar()
@@ -1596,7 +1694,7 @@ class MediaStatusWindow:
         except Exception:
             pass
         try:
-            win.geometry("216x120+24+24")
+            win.geometry("224x146+24+24")
         except Exception:
             pass
         try:
@@ -1616,12 +1714,34 @@ class MediaStatusWindow:
         self.mic = self._make_cell(row, "麦克风", "mic")
         self._render(self.cam, "cam", False)
         self._render(self.mic, "mic", False)
+        # 底部一排小字:主面板被 X 收起后,从这里再调出来;服务一直在后台跑
+        self._reopen_cb = None
+        try:
+            foot = tk.Label(
+                win, text="打开主面板", bg="#1e1e1e", fg="#4a90d9",
+                font=("Microsoft YaHei", 9), cursor="hand2"
+            )
+            foot.pack()
+            foot.bind("<Button-1>", lambda e: self._reopen_main())
+        except Exception:
+            pass
         # 点右上角 X 只隐藏,不销毁;随时可从主面板「媒体悬浮窗」按钮再调出来
         try:
             win.protocol("WM_DELETE_WINDOW", self._hide)
         except Exception:
             pass
         win.after(self._POLL_MS, self._poll)
+
+    def set_reopen_main(self, cb):
+        """把「重新打开主面板」接到 GuiApp.show();主面板收起后从这里点开。"""
+        self._reopen_cb = cb
+
+    def _reopen_main(self):
+        if self._reopen_cb:
+            try:
+                self._reopen_cb()
+            except Exception:
+                pass
 
     def _make_cell(self, parent, caption, kind):
         import tkinter as tk
@@ -2119,6 +2239,54 @@ def get_lan_ip():
         s.close()
 
 
+def start_show_ipc(on_show):
+    """本进程独占 9527(即唯一实例)后,再独占 127.0.0.1:9530。
+
+    这样即使用户把主窗口用 X 收起,再点桌面「超级终端」图标(--launch),
+    也能通过这一行本地命令把窗口唤回来。非唯一实例时 9530 已被占,静默放弃。"""
+    s = None
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", MEDIA_IPC_PORT))
+        s.listen(2)
+    except Exception:
+        try:
+            if s is not None:
+                s.close()
+        except Exception:
+            pass
+        return
+    threading.Thread(target=_ipc_show_loop, args=(s, on_show), daemon=True).start()
+
+
+def _ipc_show_loop(s, on_show):
+    s.settimeout(1.0)
+    while True:
+        try:
+            conn, _ = s.accept()
+            try:
+                data = conn.recv(64).decode("utf-8", "replace").strip().upper()
+                if data == "SHOW":
+                    try:
+                        on_show()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
+        except socket.timeout:
+            continue
+        except Exception:
+            try:
+                time.sleep(0.2)
+            except Exception:
+                pass
+
+
 def serve(port):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # 独占端口:Windows 上 SO_REUSEADDR 会让第二个实例也能绑定同一端口,
@@ -2135,8 +2303,16 @@ def serve(port):
             pass
         _log_line("!! 端口 %d 已被占用,本次不再监听" % port)
         if GUI_MODE or BACKGROUND_MODE:
-            # GUI/后台模式下 bind 失败=已有实例在跑;直接退出整个进程,避免留下一个
-            # 「配对码永远是 —」的假面板 / 一个不监听的幽灵后台进程。
+            # GUI/后台模式下 bind 失败=已有实例在跑。先请它把窗口唤出来,再退出本进程,
+            # 避免用户点了桌面图标却毫无反应;也避免留下一个「配对码永远是 —」的假面板。
+            try:
+                s = socket.create_connection(("127.0.0.1", MEDIA_IPC_PORT), timeout=1)
+                try:
+                    s.sendall(b"SHOW\n")
+                finally:
+                    s.close()
+            except Exception:
+                pass
             os._exit(1)
         raise
     server.listen(5)
@@ -2222,6 +2398,42 @@ def remove_autostart():
     return 0
 
 
+def _is_admin():
+    """当前进程是否以管理员权限运行。"""
+    if not IS_WINDOWS:
+        return True
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return True
+
+
+def _relaunch_as_admin():
+    """用管理员权限重新启动本程序(会弹一次 UAC 确认框);启动后旧进程退出。"""
+    try:
+        argv0 = '"{0}"'.format(os.path.abspath(sys.argv[0]))
+        rest = " ".join(sys.argv[1:])
+        ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable,
+            (argv0 + " " + rest).strip(), None, 1)
+    except Exception:
+        pass
+
+
+def _ensure_elevated():
+    """手机要能「控制」管理员权限的程序(联想管家/极速球/联想助手等),自身必须以管理员身份运行;
+    否则 Windows 会静默拦截我们的鼠标注入 —— 表现为普通软件都能点,管理员软件/桌面浮层上手机就失灵。
+    若当前不是管理员,就以管理员身份重启本进程。返回 True 表示控制权已移交给新进程,本进程应退出。"""
+    if not IS_WINDOWS or _is_admin():
+        return False
+    try:
+        _log_line("!! 需要管理员权限,正在以管理员身份重启(请在弹出的窗口点「是」)…")
+    except Exception:
+        pass
+    _relaunch_as_admin()
+    return True
+
+
 def main():
     port = LISTEN_PORT_DEFAULT
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -2235,17 +2447,26 @@ def main():
         sys.exit(install_autostart())
     if "--remove-autostart" in sys.argv:
         sys.exit(remove_autostart())
-    if "--summon-media" in sys.argv:
-        # 手机媒体面板.bat 调用的客户端:让正在后台跑的服务弹出媒体面板
+    if "--summon-media" in sys.argv or "--launch" in sys.argv:
+        # 手机媒体面板.bat / 桌面「超级终端」图标调用的客户端:
+        # 服务已在后台跑(独占 9530)就直接唤出它的窗口;没跑则继续往下启动。
         try:
-            s = socket.create_connection(("127.0.0.1", MEDIA_IPC_PORT), timeout=2)
+            s = socket.create_connection(("127.0.0.1", MEDIA_IPC_PORT), timeout=1)
             try:
                 s.sendall(b"SHOW\n")
             finally:
                 s.close()
+            return
         except Exception:
             pass
-        return
+        if "--summon-media" in sys.argv:
+            return  # 纯唤起客户端:没服务在跑就到此为止
+        # --launch 且没有实例在跑:去掉该参数,继续以「完整界面」启动
+        sys.argv = [sys.argv[0]] + [a for a in sys.argv[1:] if a != "--launch"]
+
+    # 手机触控板要能控制「管理员权限」的软件,自身必须以管理员运行
+    if _ensure_elevated():
+        os._exit(0)
 
     init_store()
     ip = get_lan_ip()
@@ -2269,8 +2490,9 @@ def main():
         import tkinter as tk
         root = tk.Tk()
         # 状态悬浮窗独立于登录面板,启动即显示(未登录/未连接时媒体灯全红)
-        MediaStatusWindow(tk.Toplevel(root))
-        GuiApp(root, ip, port, paired)  # 登录成功后在 _build_main 里才启动监听
+        status = MediaStatusWindow(tk.Toplevel(root))
+        app = GuiApp(root, ip, port, paired)  # 登录成功后在 _build_main 里才启动监听
+        status.set_reopen_main(app.show)      # 主面板被 X 收起后,从悬浮窗点「打开主面板」调回
         root.mainloop()
     else:
         print("=" * 60)

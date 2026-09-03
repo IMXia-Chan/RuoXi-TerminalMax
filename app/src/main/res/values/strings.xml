@@ -13,6 +13,8 @@
     <string name="camera">摄像头</string>
     <string name="mic">麦克风</string>
     <string name="switch_camera">切换</string>
+    <string name="flip_camera">翻转</string>
+    <string name="flip_camera_on">翻转·开</string>
     <string name="minimize">—</string>
     <string name="mic_icon">🎤</string>
     <string name="left_click">左键</string>

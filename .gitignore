@@ -37,3 +37,8 @@ pc-server/phone_logcat*.txt
 pc-server/_diag_*
 pc-server/_test_vcam.py
 pc-server/_read_lnk.ps1
+
+# ---- 本机专用启动/调试脚本(含绝对路径,不入库) ----
+pc-server/start_background.bat
+pc-server/media_panel.bat
+pc-server/phone_mimic.py

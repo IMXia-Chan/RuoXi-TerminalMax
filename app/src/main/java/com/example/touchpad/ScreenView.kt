@@ -147,6 +147,18 @@ class ScreenView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * 电脑回传的真实光标位置(流式坐标):手指没按时箭头跟着实体鼠标走,怎么挪都对得上。
+     * 手指按着时以本地即时坐标为准,避免回传的 ~80ms 延迟让箭头往回跳。
+     */
+    fun setRemoteCursor(x: Int, y: Int) {
+        if (mode != MODE_IDLE) return
+        if (screenW <= 0 || screenH <= 0) return
+        cursorX = x.coerceIn(0, screenW - 1)
+        cursorY = y.coerceIn(0, screenH - 1)
+        invalidate()
+    }
+
     /** 让整个电脑屏幕完整显示在视图内(等比缩小,不足的边留黑边,不裁任何内容)。 */
     private fun refit() {
         if (width <= 0 || height <= 0 || screenW <= 0 || screenH <= 0) return

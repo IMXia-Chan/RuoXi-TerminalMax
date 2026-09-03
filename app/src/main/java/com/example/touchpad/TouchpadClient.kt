@@ -62,6 +62,7 @@ class TouchpadClient(context: Context) {
         fun onNewMediaToken(token: String) {}  // 服务器签发新媒体 token(续连后刷新媒体流用)
         fun onFrame(jpeg: ByteArray, screenW: Int, screenH: Int) // 收到一帧屏幕画面
         fun onMediaCommand(cmd: String)  // 电脑端反向控制:切换摄像头/麦克风
+        fun onCursor(x: Int, y: Int) {}  // 电脑回传的真实光标位置(镜像箭头跟着它走);默认空实现
     }
 
     var listener: Listener? = null
@@ -261,6 +262,16 @@ class TouchpadClient(context: Context) {
                         }
                         line.startsWith("CMD ") -> {
                             post { listener?.onMediaCommand(line.substringAfter("CMD ").trim()) }
+                        }
+                        line.startsWith("CP ") -> {
+                            val cp = line.split(" ")
+                            if (cp.size >= 3) {
+                                val cx = cp[1].toIntOrNull()
+                                val cy = cp[2].toIntOrNull()
+                                if (cx != null && cy != null) {
+                                    post { listener?.onCursor(cx, cy) }
+                                }
+                            }
                         }
                     }
                 }
