@@ -16,6 +16,7 @@ media.py —— 超级终端:手机摄像头/麦克风 -> 电脑虚拟摄像头/
 import io
 import os
 import struct
+import sys
 import threading
 import time
 
@@ -39,7 +40,11 @@ try:
 except ImportError:
     Image = None
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+# PyInstaller 单文件打包后 __file__ 指向临时解包目录,日志要写到 exe 所在目录(与 server.py 一致)。
+if getattr(sys, "frozen", False):
+    HERE = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    HERE = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(HERE, "server.log")
 _log_lock = threading.Lock()
 

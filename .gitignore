@@ -13,6 +13,8 @@ captures/
 # ---- Python ----
 __pycache__/
 *.pyc
+dist/
+*.spec
 
 # ---- 敏感/运行时生成,绝不入库 ----
 # 认证种子(DPAPI 加密)与登录 PIN 校验值:首次配对/首次运行自动生成,见 README「彻底重新配对」
@@ -22,6 +24,11 @@ pc-server/master.json
 # 运行日志(含配对码、IP、遥测)
 *.log
 pc-server/server.log
+
+# ---- 签名密钥(分发用,绝不入库) ----
+*.jks
+*.keystore
+keystore.properties
 
 # ---- 本地调试/诊断产物 ----
 phone_log.txt

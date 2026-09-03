@@ -53,7 +53,12 @@ if sys.stderr is None:
 
 IS_WINDOWS = sys.platform == "win32"
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+# PyInstaller 单文件打包后 __file__ 指向临时解包目录(退出即删),持久化文件(密钥/日志)
+# 必须落在 exe 所在目录;用 sys.frozen 区分,否则每次启动都会丢密钥、重新配对。
+if getattr(sys, "frozen", False):
+    HERE = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    HERE = os.path.dirname(os.path.abspath(__file__))
 SECRET_PATH = os.path.join(HERE, "secret.json")
 
 PIN_TTL = 120          # 动态配对码有效期(秒)
