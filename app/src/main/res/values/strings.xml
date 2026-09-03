@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">手机触控板</string>
+    <string name="status_initial">输入电脑 IP 后点「连接」</string>
+    <string name="ip_hint">电脑 IP(如 192.168.1.5)</string>
+    <string name="connect">连接</string>
+    <string name="disconnect">断开连接</string>
+    <string name="scan">扫描</string>
+    <string name="sensitivity">灵敏度</string>
+    <string name="mode_screen">切换:屏幕</string>
+    <string name="mode_touchpad">切换:触控板</string>
+    <string name="keyboard">键盘</string>
+    <string name="camera">摄像头</string>
+    <string name="mic">麦克风</string>
+    <string name="switch_camera">切换</string>
+    <string name="minimize">—</string>
+    <string name="mic_icon">🎤</string>
+    <string name="left_click">左键</string>
+    <string name="right_click">右键</string>
+    <string name="wheel_up">滚轮▲</string>
+    <string name="wheel_down">滚轮▼</string>
+</resources>

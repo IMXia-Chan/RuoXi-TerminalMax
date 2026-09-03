@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <!-- 屏幕镜像:铺满,不再被左侧面板占空间 -->
+    <com.example.touchpad.ScreenView
+        android:id="@+id/screen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/surface" />
+
+    <!-- 抽屉容器:[面板][把手],整体偏上;收起时左移 panelWidth 只露把手 -->
+    <LinearLayout
+        android:id="@+id/drawer_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start|top"
+        android:layout_marginTop="88dp"
+        android:orientation="horizontal">
+
+        <!-- 毛玻璃白色抽屉面板(只放 扫描/连接/键盘;左/右键操作直接用屏幕手势) -->
+        <LinearLayout
+            android:id="@+id/drawer_panel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="top|center_horizontal"
+            android:background="@drawable/drawer_rounded"
+            android:paddingStart="20dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <Button
+                android:id="@+id/btn_scan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minWidth="86dp"
+                android:text="@string/scan" />
+
+            <Button
+                android:id="@+id/btn_disconnect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minWidth="86dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/disconnect" />
+
+            <Button
+                android:id="@+id/btn_keyboard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minWidth="86dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/btn_secondary"
+                android:text="@string/keyboard" />
+
+            <Button
+                android:id="@+id/btn_mirror"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minWidth="86dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/btn_secondary"
+                android:text="镜像:均衡" />
+
+        </LinearLayout>
+
+        <!-- 常驻把手:点击呼出/收起抽屉 -->
+        <View
+            android:id="@+id/drawer_handle"
+            android:layout_width="12dp"
+            android:layout_height="96dp"
+            android:layout_gravity="center_vertical"
+            android:background="@drawable/handle_bar"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <!-- 右下角媒体预览面板:相机/麦克风可点击图标(开=绿灯,关=红灯+斜杠)+ 摄像头人像;可拖动/缩放/最小化 -->
+    <LinearLayout
+        android:id="@+id/media_preview_panel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:orientation="horizontal"
+        android:gravity="bottom"
+        android:visibility="gone">
+
+        <!-- 麦克风图标(可点击开关):抽象图标 + 状态灯 + 关闭斜杠 -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp">
+
+            <ImageView
+                android:id="@+id/mic_icon"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_mic"
+                android:contentDescription="@string/mic" />
+
+            <ImageView
+                android:id="@+id/mic_slash"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_slash"
+                android:contentDescription="@null" />
+
+            <View
+                android:id="@+id/mic_dot"
+                android:layout_width="11dp"
+                android:layout_height="11dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/dot_red" />
+        </FrameLayout>
+
+        <!-- 摄像头图标(可点击开关):抽象图标 + 状态灯 + 关闭斜杠 -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp">
+
+            <ImageView
+                android:id="@+id/cam_icon"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_camera"
+                android:contentDescription="@string/camera" />
+
+            <ImageView
+                android:id="@+id/cam_slash"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_slash"
+                android:contentDescription="@null" />
+
+            <View
+                android:id="@+id/cam_dot"
+                android:layout_width="11dp"
+                android:layout_height="11dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/dot_red" />
+        </FrameLayout>
+
+        <!-- 摄像头人像预览(可切前/后置) -->
+        <FrameLayout
+            android:id="@+id/preview_box"
+            android:layout_width="220dp"
+            android:layout_height="150dp"
+            android:background="@drawable/preview_rounded">
+
+            <ImageView
+                android:id="@+id/preview_image"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="@string/camera" />
+
+            <Button
+                android:id="@+id/btn_minimize"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="4dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:textSize="12sp"
+                android:text="@string/minimize" />
+
+            <Button
+                android:id="@+id/btn_switch_camera"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="4dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:textSize="12sp"
+                android:text="@string/switch_camera" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- 最小化后的恢复悬浮球(右下角) -->
+    <ImageButton
+        android:id="@+id/btn_restore_panel"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="end|bottom"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:src="@drawable/ic_camera"
+        android:background="@drawable/restore_round"
+        android:padding="13dp"
+        android:scaleType="fitCenter"
+        android:visibility="gone" />
+</FrameLayout>

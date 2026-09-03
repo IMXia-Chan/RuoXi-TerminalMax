@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 抽屉把手:一条常驻的竖条,抽屉收起时只剩它露在屏幕左侧 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#B3FFFFFF" />
+    <corners
+        android:topRightRadius="10dp"
+        android:bottomRightRadius="10dp" />
+</shape>
