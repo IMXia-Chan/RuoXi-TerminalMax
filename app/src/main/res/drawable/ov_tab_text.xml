@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 分段开关文字:选中(蓝底)= 白;未选中 = 深灰(白色磨砂面板上) -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:color="#FFFFFFFF" />
+    <item android:color="#99263238" />
+</selector>

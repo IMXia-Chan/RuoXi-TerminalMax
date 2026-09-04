@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 悬浮小球底:磨砂玻璃圆球(左上高光渐变 + 细亮边) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:startColor="#EE64758E"
+        android:centerColor="#C92E3A4E"
+        android:endColor="#B91B2431"
+        android:angle="315" />
+    <stroke
+        android:width="1dp"
+        android:color="#52FFFFFF" />
+</shape>

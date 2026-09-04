@@ -5,4 +5,13 @@
     <color name="accent">#4CAF50</color>
     <color name="text_primary">#F2F3F5</color>
     <color name="text_secondary">#9BA1A6</color>
+    <color name="glass_text">#263238</color>
+
+    <!-- 开屏动画 Splash -->
+    <color name="splash_bg">#000000</color>
+    <color name="splash_text">#FFFFFF</color>
+    <color name="splash_band_dark">#0A1628</color>
+    <color name="splash_band_mid">#1E3A5F</color>
+    <color name="splash_glow">#4A90D9</color>
+    <color name="splash_glint">#EDF2F9</color>
 </resources>

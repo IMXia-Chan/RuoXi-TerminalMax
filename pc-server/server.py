@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-手机触控板 —— 电脑端服务 (Wi-Fi 方案, 带图形前端)
+若息 · Terminal Max —— 电脑端服务 (Wi-Fi 方案, 带图形前端)
 
 认证(每次连接都完整重新认证):
   1. 动态配对码:手机连上后,电脑前端/弹窗显示一个 6 位随机码(每次连接都变),
@@ -44,6 +44,12 @@ try:
 except Exception:
     media = None
 
+# 文件互传模块(手机 -> 电脑的上传接收,复用 9527 端口独立连接)。可选依赖。
+try:
+    import files
+except Exception:
+    files = None
+
 # pythonw.exe 无控制台,sys.stdout/stderr 为 None;任何 print 都会崩溃。
 # 这里重定向到 devnull,避免无窗口运行时崩溃(配对码仍通过 MessageBox 弹窗显示)。
 if sys.stdout is None:
@@ -73,6 +79,24 @@ LISTEN_PORT_DEFAULT = 9527
 DISCOVERY_PORT = 9528     # UDP 自动发现广播端口(手机扫描电脑用)
 BEACON_INTERVAL = 2.0     # 广播间隔(秒)
 MEDIA_IPC_PORT = 9530     # 仅 127.0.0.1 的回环命令口:让「手机媒体面板.bat」能把面板唤出来
+
+
+def _default_transfer_dir():
+    """电脑端文件中转目录:手机「浏览电脑文件」看的就是它,手机上传的文件也落在这里。"""
+    try:
+        dl = os.path.expanduser("~/Downloads")
+        os.makedirs(dl, exist_ok=True)
+    except Exception:
+        dl = os.path.expanduser("~")
+    try:
+        sub = os.path.join(dl, "超级终端中转站")
+        os.makedirs(sub, exist_ok=True)
+        return sub
+    except Exception:
+        return dl
+
+
+TRANSFER_DIR = _default_transfer_dir()   # 文件互传的电脑中转目录
 
 # 诊断日志:所有连接事件/指令都追加到 server.log,方便排查「已连接又断开」
 LOG_PATH = os.path.join(HERE, "server.log")
@@ -756,6 +780,14 @@ import queue as _queue_mod
 
 gui_queue = _queue_mod.Queue()
 
+# 把文件互传模块指向本模块的中转目录,并让它的完成事件(如手机上传成功)走同一条 GUI 事件线。
+if files is not None:
+    try:
+        files.TRANSFER_DIR = TRANSFER_DIR
+        files.on_event = lambda evt: gui_queue.put(evt)
+    except Exception:
+        pass
+
 
 def _emit(kind, **data):
     _log_line("[emit] %s %s" % (kind, data))
@@ -771,9 +803,9 @@ def _cli_emit(kind, **data):
         pin = data["pin"]
         print()
         print("  *" * 20)
-        print(f"  *  手机触控板配对码: {pin}   *")
+        print(f"  *  若息 配对码: {pin}   *")
         print("  *" * 20)
-        _cli_popup(f"手机触控板配对码: {pin}\n\n请在手机端输入这个码。\n({PIN_TTL} 秒内有效)")
+        _cli_popup(f"若息 配对码: {pin}\n\n请在手机端输入这个码。\n({PIN_TTL} 秒内有效)")
     elif kind == "setup":
         secret = data["secret"]
         recovery = data["recovery"]
@@ -811,22 +843,23 @@ def _cli_popup(text):
                 ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint,
             ]
             user32.MessageBoxW.restype = ctypes.c_int
-            user32.MessageBoxW(None, text, "手机触控板配对", 0x40)
+            user32.MessageBoxW(None, text, "若息 — 配对", 0x40)
         except Exception:
             pass
 
     threading.Thread(target=_show, daemon=True).start()
 
 # ---------------------------------------------------------------------------
-# 控制连接注册表:电脑端状态窗图标可反向给手机下发媒体开关命令
+# 控制连接注册表:电脑端状态窗图标可反向给手机下发媒体开关/文件命令。
+# 值为 (conn, f, write_lock):conn 用于发文件二进制块,文本行走 f。
 # ---------------------------------------------------------------------------
 _ctrl_registry = {}
 _ctrl_registry_lock = threading.Lock()
 
 
-def _register_ctrl(f, write_lock):
+def _register_ctrl(conn, f, write_lock):
     with _ctrl_registry_lock:
-        _ctrl_registry[id(f)] = (f, write_lock)
+        _ctrl_registry[id(f)] = (conn, f, write_lock)
 
 
 def _unregister_ctrl(f):
@@ -839,7 +872,7 @@ def send_ctrl_line(line):
     with _ctrl_registry_lock:
         items = list(_ctrl_registry.values())
     n = 0
-    for f, write_lock in items:
+    for _conn, f, write_lock in items:
         try:
             with write_lock:
                 f.write(line + "\n")
@@ -848,6 +881,357 @@ def send_ctrl_line(line):
         except Exception:
             pass
     return n
+
+
+def _send_ctrl_targeted(line):
+    """向最近一台已连接手机下发一行;无连接返回 False(文件操作只对同一台手机)。"""
+    with _ctrl_registry_lock:
+        items = list(_ctrl_registry.values())
+    if not items:
+        return False
+    try:
+        _conn, f, write_lock = items[-1]
+        with write_lock:
+            f.write(line + "\n")
+            f.flush()
+        return True
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# 文件互传:电脑中转目录列目录/下发文件/推送手机,以及「手机文件夹」取回。
+# 命名与媒体一致,方便手机端复用「FRAME 行头+原始字节」的解析模式。
+# ---------------------------------------------------------------------------
+_phone_download_lock = threading.Lock()   # 同一时刻只允许一路 电脑->手机 文件传输
+
+
+def _b64u(s):
+    return base64.b64encode(s.encode("utf-8")).decode("ascii")
+
+
+def _b64d(s):
+    try:
+        return base64.b64decode(s.encode("ascii")).decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _file_base():
+    return os.path.realpath(files.TRANSFER_DIR if files is not None else TRANSFER_DIR)
+
+
+def _safe_transfer_path(relpath):
+    """把手机传来的相对路径安全解析到中转目录内;空=根;越界/不存在返回 None。"""
+    base = _file_base()
+    if not relpath or relpath in (".", "/"):
+        return base
+    cand = os.path.realpath(os.path.join(base, relpath))
+    if cand == base or cand.startswith(base + os.sep):
+        return cand
+    return None
+
+
+def _list_entries(relpath):
+    """列中转目录某层(直接子项);越界/非目录返回 None。隐藏文件与临时 .part 不列出。"""
+    d = _safe_transfer_path(relpath)
+    if not d or not os.path.isdir(d):
+        return None
+    out = []
+    try:
+        with os.scandir(d) as it:
+            for e in it:
+                if e.name.startswith(".") or e.name.endswith(".part"):
+                    continue
+                try:
+                    isd = e.is_dir()
+                    sz = 0 if isd else e.stat().st_size
+                except Exception:
+                    isd, sz = False, 0
+                out.append({"n": e.name, "d": 1 if isd else 0, "s": sz})
+    except Exception:
+        return None
+    out.sort(key=lambda x: (not x["d"], x["n"].lower()))
+    return out
+
+
+def _cmd_ls(f, write_lock, relpath_b64):
+    """手机请求列电脑中转目录某层。回一行 LSR <b64 json>。"""
+    relpath = _b64d(relpath_b64)
+    entries = _list_entries(relpath)
+    if entries is None:
+        payload = json.dumps({"path": relpath or "", "err": "目录不存在或无法访问"},
+                             ensure_ascii=False)
+    else:
+        payload = json.dumps({"path": relpath or "", "entries": entries}, ensure_ascii=False)
+    try:
+        with write_lock:
+            f.write("LSR %s\n" % _b64u(payload))
+            f.flush()
+    except Exception:
+        pass
+
+
+def _send_file_err(f, write_lock, msg):
+    try:
+        with write_lock:
+            f.write("FILE_ERR %s\n" % _b64u(msg))
+            f.flush()
+    except Exception:
+        pass
+
+
+def send_file_download(conn, f, write_lock, abspath, display_name, progress_cb=None):
+    """把本地文件 abspath 以 display_name 推给控制连接(须在 _phone_download_lock 内调用)。
+
+    顺序:FILE_START <b64name> <size> → N×(FCHUNK <len> + 原始字节) → FILE_END <sha256>。
+    文本头与原始字节在同一 write_lock 内连写,保证与镜像 FRAME 不会交错。
+    """
+    if not os.path.isfile(abspath):
+        _send_file_err(f, write_lock, "文件不存在")
+        return False
+    size = os.path.getsize(abspath)
+    sha = hashlib.sha256()
+    try:
+        with write_lock:
+            f.write("FILE_START %s %d\n" % (_b64u(display_name), size))
+            f.flush()
+        with open(abspath, "rb") as fh:
+            while True:
+                data = fh.read(256 * 1024)   # 256KB/块
+                if not data:
+                    break
+                sha.update(data)
+                with write_lock:
+                    f.write("FCHUNK %d\n" % len(data))
+                    f.flush()
+                    conn.sendall(data)
+                if progress_cb:
+                    progress_cb(len(data))
+        with write_lock:
+            f.write("FILE_END %s\n" % sha.hexdigest())
+            f.flush()
+        return True
+    except Exception as e:
+        _log_line("[file] 下发中断: %s" % e)
+        _send_file_err(f, write_lock, "传输中断")
+        return False
+
+
+def _cmd_get(conn, f, write_lock, relpath_b64):
+    """手机请求把电脑中转目录里的某个文件拉到手机。GET 一次只传一个文件。"""
+    relpath = _b64d(relpath_b64)
+    abspath = _safe_transfer_path(relpath)
+    if not abspath or not os.path.isfile(abspath):
+        _send_file_err(f, write_lock, "文件不存在或不在中转目录")
+        return
+    if not _phone_download_lock.acquire(blocking=False):
+        _send_file_err(f, write_lock, "已有文件传输进行中")
+        return
+    try:
+        send_file_download(conn, f, write_lock, abspath, os.path.basename(abspath))
+    finally:
+        _phone_download_lock.release()
+
+
+_THUMB_CACHE = {}          # (abspath,size,mtime) -> JPEG 字节;避免同一批图反复解码
+_THUMB_MAX = 300
+
+
+def _send_thumb_err(f, write_lock, msg):
+    try:
+        with write_lock:
+            f.write("THUMBERR %s\n" % _b64u(msg))
+            f.flush()
+    except Exception:
+        pass
+
+
+def _cmd_thumb(conn, f, write_lock, relpath_b64):
+    """手机请求电脑某张图片的缩略图:回 THUMB <b64rel> <len> + JPEG 字节(写锁内连写)。"""
+    relpath = _b64d(relpath_b64)
+    abspath = _safe_transfer_path(relpath)
+    if not abspath or not os.path.isfile(abspath):
+        _send_thumb_err(f, write_lock, "文件不存在或不在中转目录")
+        return
+    if Image is None:
+        _send_thumb_err(f, write_lock, "电脑端缺图像库,无法生成预览")
+        return
+    try:
+        st = os.stat(abspath)
+        ckey = (abspath, st.st_size, int(st.st_mtime))
+        data = _THUMB_CACHE.get(ckey)
+        if data is None:
+            with Image.open(abspath) as im:
+                im.thumbnail((320, 320))
+                if im.mode not in ("RGB", "L"):
+                    im = im.convert("RGB")
+                buf = io.BytesIO()
+                im.save(buf, "JPEG", quality=80)
+                data = buf.getvalue()
+            if len(_THUMB_CACHE) > _THUMB_MAX:
+                _THUMB_CACHE.clear()
+            _THUMB_CACHE[ckey] = data
+    except Exception as e:
+        _send_thumb_err(f, write_lock, "无法生成预览:%s" % str(e)[:60])
+        return
+    try:
+        with write_lock:
+            f.write("THUMB %s %d\n" % (_b64u(relpath), len(data)))
+            f.flush()
+            conn.sendall(data)
+    except Exception:
+        pass
+
+
+def _recycle_dest(base, name):
+    """把中转目录内的文件搬到回收:优先 Windows 回收站;否则移到 .recycle(可恢复)。"""
+    try:
+        import send2trash  # 装了它就走系统回收站
+        send2trash.send2trash(base)   # base 在下面调用前已被替换为 abspath,见 _cmd_del
+        return "recycle"
+    except ImportError:
+        d = os.path.join(_file_base(), ".recycle")
+        try:
+            os.makedirs(d, exist_ok=True)
+        except Exception:
+            return None
+        cand = os.path.join(d, name)
+        if os.path.exists(cand):
+            stem, ext = os.path.splitext(name)
+            for i in range(1, 10000):
+                c2 = os.path.join(d, "%s_%d%s" % (stem, i, ext))
+                if not os.path.exists(c2):
+                    cand = c2
+                    break
+        try:
+            os.replace(base, cand)
+        except Exception:
+            return None
+        return "folder"
+
+
+def _cmd_del(f, write_lock, relpath_b64):
+    """手机请求把电脑中转目录某文件移入回收站(可恢复,不真删)。回 DELOK/DELERR <b64 msg>。"""
+    relpath = _b64d(relpath_b64)
+    abspath = _safe_transfer_path(relpath)
+    if not abspath or not os.path.isfile(abspath):
+        try:
+            with write_lock:
+                f.write("DELERR %s\n" % _b64u("文件不存在或不在中转目录"))
+                f.flush()
+        except Exception:
+            pass
+        return
+    try:
+        mode = _recycle_dest(abspath, os.path.basename(abspath))
+        if mode is None:
+            msg = "移入回收站失败"
+            ok = False
+        elif mode == "recycle":
+            msg = "已移入 Windows 回收站(可还原)"
+            ok = True
+        else:
+            msg = "已移到中转目录的 .recycle(可找回)"
+            ok = True
+        with write_lock:
+            f.write("%s %s\n" % ("DELOK" if ok else "DELERR", _b64u(msg)))
+            f.flush()
+    except Exception as e:
+        try:
+            with write_lock:
+                f.write("DELERR %s\n" % _b64u("删除失败:%s" % str(e)[:60]))
+                f.flush()
+        except Exception:
+            pass
+
+
+def _cmd_phl(relpath_b64):
+    """手机回传它的中转目录清单(响应电脑 PHLS),交给 GUI 中转站显示。"""
+    data = _b64d(relpath_b64)
+    try:
+        obj = json.loads(data)
+    except Exception:
+        return
+    if isinstance(obj, dict):
+        try:
+            gui_queue.put({"kind": "phl_result", "payload": obj})
+        except Exception:
+            pass
+
+
+def push_local_file_to_phone(abspath):
+    """电脑 -> 手机:把本地任意文件推给已连接的手机(后台线程发,进度经 gui_queue 上报)。"""
+    if not os.path.isfile(abspath):
+        try:
+            gui_queue.put({"kind": "file_note", "msg": "文件不存在"})
+        except Exception:
+            pass
+        return
+    with _ctrl_registry_lock:
+        items = list(_ctrl_registry.values())
+    if not items:
+        try:
+            gui_queue.put({"kind": "file_note", "msg": "手机未连接"})
+        except Exception:
+            pass
+        return
+    _conn, f, wl = items[-1]
+    name = os.path.basename(abspath)
+
+    def worker():
+        if not _phone_download_lock.acquire(blocking=False):
+            gui_queue.put({"kind": "file_note", "msg": "已有文件传输进行中"})
+            return
+        try:
+            last_emit = [0.0]
+
+            def prog(_b):
+                now = time.time()
+                if now - last_emit[0] >= 0.25:   # 进度刷屏节流
+                    last_emit[0] = now
+                    gui_queue.put({"kind": "file_note", "msg": "正在发送 %s …" % name})
+
+            ok = send_file_download(_conn, f, wl, abspath, name, progress_cb=prog)
+            gui_queue.put({
+                "kind": "file_note",
+                "msg": ("已发送 %s 到手机" % name) if ok else ("发送 %s 失败" % name),
+            })
+        finally:
+            _phone_download_lock.release()
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def request_phone_list():
+    """电脑 -> 手机:请手机回传它的中转目录清单(手机收到 PHLS 后回 PHL)。"""
+    if not _send_ctrl_targeted("PHLS"):
+        try:
+            gui_queue.put({"kind": "file_note", "msg": "手机未连接"})
+        except Exception:
+            pass
+
+
+def pull_phone_file(name):
+    """电脑 -> 手机:请手机把中转目录里的文件 name 上传回电脑(手机收到 PULL 后走 FILE 连接)。"""
+    if not _send_ctrl_targeted("PULL %s" % _b64u(name)):
+        try:
+            gui_queue.put({"kind": "file_note", "msg": "手机未连接"})
+        except Exception:
+            pass
+
+
+def open_transfer_dir():
+    try:
+        if IS_WINDOWS:
+            os.startfile(_file_base())   # 用系统资源管理器打开中转目录
+        else:
+            subprocess.Popen(["xdg-open", _file_base()])
+    except Exception:
+        try:
+            gui_queue.put({"kind": "file_note", "msg": "无法打开中转目录"})
+        except Exception:
+            pass
 
 # ---------------------------------------------------------------------------
 # 客户端会话
@@ -863,11 +1247,29 @@ def handle_client(conn, addr):
     # 先短超时探测首行区分二者:媒体连接直接转媒体处理,不再走配对流程。
     try:
         conn.settimeout(0.5)
-        first = media._recv_line(conn) if media is not None else None
+        # 首行探测:MEDIA/FILE/RESUME 连接各自先表明身份。优先用 media 的读取,
+        # media 不可用(未安装依赖)时退回 files 的,保证文件互传不依赖媒体模块。
+        _probe = (media._recv_line if media is not None else
+                  files._recv_line if files is not None else None)
+        first = _probe(conn) if _probe is not None else None
     except Exception:
         first = None
     if first and first.startswith("MEDIA "):
         media.handle_media_conn(conn, first)
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return
+    # 文件上传连接会立刻发 `FILE <token>`:直接转文件模块接收,不走配对流程。
+    if first and first.startswith("FILE "):
+        if files is not None:
+            files.handle_file_conn(conn, first)
+        else:
+            try:
+                conn.sendall(b"ERR files disabled\n")
+            except Exception:
+                pass
         try:
             conn.close()
         except Exception:
@@ -972,13 +1374,17 @@ def handle_client(conn, addr):
         # 免码续连 token:掉线重连时凭它 10 分钟内免输配对码(重连自动续新/顺延)
         f.write("RESUME %s\n" % _issue_resume())
         f.flush()
+        # 文件互传 token:手机凭它开「上传文件」的独立连接(与媒体 token 同理,免重复认证)
+        if files is not None:
+            f.write("FILE_TOKEN %s\n" % files.issue_file_token())
+            f.flush()
         _emit("connected", addr=addr[0] if addr else "?")
 
         prev_seq = 0
         cmd_count = 0
         streaming = threading.Event()
         write_lock = threading.Lock()
-        _register_ctrl(f, write_lock)
+        _register_ctrl(conn, f, write_lock)
         # 光标回传线程:实体鼠标一挪,发 CP 让手机镜像的箭头跟着真实光标走。
         cursor_alive = threading.Event()
         cursor_alive.set()
@@ -1018,6 +1424,28 @@ def handle_client(conn, addr):
             cmd_count += 1
             if cmd_count % 50 == 1:
                 _log_line("[ok] 已处理 %d 条指令, 最近: %s" % (cmd_count, cmd))
+
+            # ---- 文件互传(手机 浏览/拉取 电脑中转目录;回传手机目录清单) ----
+            # LS <seq> <b64(relpath)> : 列电脑中转目录某层
+            # GET <seq> <b64(relpath)>: 把电脑中转目录某文件拉到手机
+            # PHL <seq> <b64(json)>   : 手机回传它的中转目录清单(响应电脑 PHLS)
+            if cmd == "LS" and len(parts) == 4 and files is not None:
+                _cmd_ls(f, write_lock, parts[2])
+                continue
+            if cmd == "GET" and len(parts) == 4 and files is not None:
+                _cmd_get(conn, f, write_lock, parts[2])
+                continue
+            if cmd == "PHL" and len(parts) == 4 and files is not None:
+                _cmd_phl(parts[2])
+                continue
+            # THUMB <seq> <b64(relpath)>: 请求电脑某图生成小预览图(JPEG)下发
+            # DEL  <seq> <b64(relpath)>:  把电脑中转目录某文件移入回收站(可恢复)
+            if cmd == "THUMB" and len(parts) == 4 and files is not None:
+                _cmd_thumb(conn, f, write_lock, parts[2])
+                continue
+            if cmd == "DEL" and len(parts) == 4 and files is not None:
+                _cmd_del(f, write_lock, parts[2])
+                continue
 
             if cmd == "M" and len(parts) == 7:
                 try:
@@ -1162,8 +1590,9 @@ class GuiApp:
         self.ip = ip
         self.port = port
         self.paired = paired
+        _transfer_set_root(root)   # 让文件中转站悬浮窗能挂在主面板下
         self._qr_photo = None  # 持引用防 GC
-        root.title("手机触控板 — 电脑端")
+        root.title("若息 · Terminal Max — 电脑端")
         root.minsize(420, 540)
         # 点右上角 X = 隐藏到后台,服务照跑;想彻底停请用主面板的「退出服务」。
         root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -1261,7 +1690,7 @@ class GuiApp:
         self._clear_root()
         pad = {"padx": 12, "pady": 4}
 
-        tk.Label(self.root, text="手机触控板", font=("Microsoft YaHei", 16, "bold")).pack(anchor="w", **pad)
+        tk.Label(self.root, text="若息", font=("Microsoft YaHei", 16, "bold")).pack(anchor="w", **pad)
         self.info_var = tk.StringVar()
         self.info_var.set(
             f"本机地址  {self.ip}:{self.port}    状态:{'已配对' if self.paired else '未配对'}"
@@ -1285,9 +1714,13 @@ class GuiApp:
         self.float_btn = tk.Button(
             med_row, text="媒体悬浮窗", width=11, font=("Microsoft YaHei", 10),
             command=self._show_media_window)
+        self.transfer_btn = tk.Button(
+            med_row, text="中转站", width=9, font=("Microsoft YaHei", 10),
+            command=open_transfer_window)
         self.cam_btn.pack(side="left")
         self.mic_btn.pack(side="left", padx=6)
         self.float_btn.pack(side="left")
+        self.transfer_btn.pack(side="left", padx=(6, 0))
 
         # 提示 + 退出:点右上角 X 只是收起窗口,手机连接不断;想彻底停才用这个按钮
         tk.Label(
@@ -1406,6 +1839,12 @@ class GuiApp:
                 self.status_var.set("已断开,等待手机连接…")
         elif kind == "log":
             self._log(evt["msg"])
+        elif kind == "transfer_toggle":
+            # 全局热键:呼出/收起电脑文件中转站
+            toggle_transfer_window()
+        elif kind in ("phl_result", "file_note", "upload_done"):
+            # 文件互传事件:转给文件中转站悬浮窗(没有就自动弹出来)
+            transfer_feed(evt)
 
     def _log(self, msg):
         self.log.config(state="normal")
@@ -1429,6 +1868,7 @@ class BackgroundHost:
         self.root = root
         self.ip = ip
         self.port = port
+        _transfer_set_root(root)   # 让文件中转站悬浮窗能挂在后台宿主下
         self._pair_win = None
         self._pair_after = None
         self._setup_win = None
@@ -1443,7 +1883,7 @@ class BackgroundHost:
         self._frame = None          # 最新一帧 JPEG(供预览,仅在面板可见时解码)
         self._last_vs = -1
         try:
-            root.title("手机触控板(后台)")
+            root.title("若息 · Terminal Max(后台)")
         except Exception:
             pass
         root.withdraw()  # 隐藏根窗口:整个服务没有任何常驻窗口
@@ -1514,6 +1954,12 @@ class BackgroundHost:
             # 手机媒体面板.bat 唤出:主动展示并保持(直到用户点 X 收起)
             self._manual = True
             self._show_console()
+        elif kind == "transfer_toggle":
+            # 全局热键:呼出/收起电脑文件中转站
+            toggle_transfer_window()
+        elif kind in ("phl_result", "file_note", "upload_done"):
+            # 文件互传事件:转给文件中转站悬浮窗(没有就自动弹出来)
+            transfer_feed(evt)
 
     # ---- 媒体面板自动弹/收 + 预览/电平刷新(在 Tk 主线程轮询) ----
     def _tick_media(self):
@@ -1623,7 +2069,7 @@ class BackgroundHost:
         import tkinter as tk
         w = tk.Toplevel(self.root)
         try:
-            w.title("手机触控板 — 配对")
+            w.title("若息 — 配对")
             w.attributes("-topmost", True)
             w.configure(bg="#1e1e1e")
         except Exception:
@@ -1649,7 +2095,7 @@ class BackgroundHost:
         grouped = "-".join(secret[i:i + 4] for i in range(0, len(secret), 4))
         w = tk.Toplevel(self.root)
         try:
-            w.title("手机触控板 — 首次配对")
+            w.title("若息 — 首次配对")
             w.attributes("-topmost", True)
             w.configure(bg="#1e1e1e")
         except Exception:
@@ -1689,7 +2135,7 @@ class MediaStatusWindow:
         MediaStatusWindow._instance = self
         self.win = win
         try:
-            win.title("超级终端")
+            win.title("若息")
             win.attributes("-topmost", True)
         except Exception:
             pass
@@ -1717,12 +2163,20 @@ class MediaStatusWindow:
         # 底部一排小字:主面板被 X 收起后,从这里再调出来;服务一直在后台跑
         self._reopen_cb = None
         try:
+            foot_row = tk.Frame(win, bg="#1e1e1e")
+            foot_row.pack()
             foot = tk.Label(
-                win, text="打开主面板", bg="#1e1e1e", fg="#4a90d9",
+                foot_row, text="打开主面板", bg="#1e1e1e", fg="#4a90d9",
                 font=("Microsoft YaHei", 9), cursor="hand2"
             )
-            foot.pack()
+            foot.pack(side="left")
             foot.bind("<Button-1>", lambda e: self._reopen_main())
+            trans = tk.Label(
+                foot_row, text="文件中转站", bg="#1e1e1e", fg="#4a90d9",
+                font=("Microsoft YaHei", 9), cursor="hand2"
+            )
+            trans.pack(side="left", padx=(14, 0))
+            trans.bind("<Button-1>", lambda e: open_transfer_window())
         except Exception:
             pass
         # 点右上角 X 只隐藏,不销毁;随时可从主面板「媒体悬浮窗」按钮再调出来
@@ -1853,7 +2307,7 @@ class MediaConsole:
         self._placeholder_note = None  # 兼容旧属性名,保留引用
         self.close_cb = None           # 由宿主设置:用户点 X 收起面板时通知
         try:
-            win.title("手机媒体面板")
+            win.title("若息 · 媒体面板")
             win.configure(bg="#1e1e1e")
             win.attributes("-topmost", True)
         except Exception:
@@ -1905,6 +2359,13 @@ class MediaConsole:
             bd=0, padx=12, pady=10, font=("Microsoft YaHei", 9),
             command=self._enter_compact)
         self.compact_btn.pack(side="left", padx=14)
+        # 文件中转站:任意时刻唤出 电脑<->手机 互传窗口
+        self.transfer_btn = tk.Button(
+            icon_row, text="中转站", bg="#2a2a2a", fg="#ffd27f", relief="flat",
+            activebackground="#333333", activeforeground="#ffefcf", cursor="hand2",
+            bd=0, padx=12, pady=10, font=("Microsoft YaHei", 9),
+            command=open_transfer_window)
+        self.transfer_btn.pack(side="left", padx=(0, 6))
 
         # 提示行
         self._tip1 = tk.Label(win, text="在别的软件里选:摄像头 = OBS Virtual Camera · 麦克风 = CABLE Input",
@@ -2225,6 +2686,364 @@ class MediaConsole:
         except Exception:
             pass
 
+
+# ---------------------------------------------------------------------------
+# 文件中转站悬浮窗(电脑端):像 OPPO 中转站,可看两端文件、选方向互传。
+#  - 「发送文件到手机」:选电脑上任意文件推给手机
+#  - 「刷新手机文件 / 取回」:看手机中转文件夹里的文件,拉到电脑中转目录
+# 由宿主在收到文件事件(手机上传完成等)时自动弹出,也可从主面板/媒体悬浮窗唤出。
+# ---------------------------------------------------------------------------
+_TRANSFER_STATION = None    # 单例
+_TRANSFER_ROOT = None       # 所在 Tk 根窗口(宿主创建时登记)
+
+
+def _transfer_set_root(root):
+    global _TRANSFER_ROOT
+    _TRANSFER_ROOT = root
+
+
+class TransferStation:
+    _W, _H = 420, 640
+
+    def __init__(self, win):
+        self.win = win
+        self._shown = False
+        self._entries = []        # 手机文件夹清单: [{n,s,d}]
+        self._phone_dir = ""      # 手机回传时带的当前路径(留作显示)
+        self._local = []          # 电脑中转目录(收到的文件)清单
+        try:
+            win.title("若息 · 文件中转站")
+            win.configure(bg="#1e1e1e")
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
+        try:
+            win.geometry("%dx%d" % (self._W, self._H))
+        except Exception:
+            pass
+
+        # 标题/中转目录路径
+        tk.Label(win, text="文件中转站", bg="#1e1e1e", fg="#e8e8e8",
+                 font=("Microsoft YaHei", 12, "bold")).pack(pady=(10, 0))
+        tk.Label(win, text="电脑中转目录(手机上传也存这里)",
+                 bg="#1e1e1e", fg="#9aa0a6", font=("Microsoft YaHei", 9)).pack(pady=(0, 2))
+
+        # 状态行(进度/结果)
+        self.status = tk.Label(win, text="就绪", bg="#1e1e1e", fg="#b0b6bc",
+                               font=("Microsoft YaHei", 9), wraplength=self._W - 40,
+                               justify="left", anchor="w")
+        self.status.pack(fill="x", padx=14, pady=(6, 4))
+
+        # 电脑 -> 手机:选电脑文件推送
+        row1 = tk.Frame(win, bg="#1e1e1e")
+        row1.pack(fill="x", padx=14)
+        tk.Button(row1, text="发送文件到手机…", bg="#2a2a2a", fg="#9fd3ff", relief="flat",
+                  activebackground="#333", cursor="hand2", font=("Microsoft YaHei", 10),
+                  command=self._on_send).pack(side="left")
+        tk.Button(row1, text="打开电脑中转目录", bg="#2a2a2a", fg="#c9d1d9", relief="flat",
+                  activebackground="#333", cursor="hand2", font=("Microsoft YaHei", 9),
+                  command=open_transfer_dir).pack(side="right")
+
+        # ---- 电脑中转目录 · 收到的文件(手机上传落在这里;列表在收到文件时自动刷新) ----
+        lhead = tk.Frame(win, bg="#1e1e1e")
+        lhead.pack(fill="x", padx=16, pady=(10, 2))
+        tk.Label(lhead, text="电脑收到的文件(手机传上来就在这,双击可发回手机)",
+                 bg="#1e1e1e", fg="#9aa0a6",
+                 font=("Microsoft YaHei", 9)).pack(side="left")
+        tk.Button(lhead, text="刷新", bg="#3a3f47", fg="#c9d1d9", relief="flat",
+                  activebackground="#333", cursor="hand2", font=("Microsoft YaHei", 9),
+                  command=self._refresh_local).pack(side="right")
+        lrow = tk.Frame(win, bg="#1e1e1e")
+        lrow.pack(fill="x", padx=14)
+        self.local_box = tk.Listbox(lrow, bg="#232323", fg="#d6d6d6", selectbackground="#2f6fb0",
+                                    relief="flat", font=("Microsoft YaHei", 10),
+                                    activestyle="none", highlightthickness=0, height=5)
+        lsb = tk.Scrollbar(lrow, orient="vertical", command=self.local_box.yview)
+        self.local_box.configure(yscrollcommand=lsb.set)
+        self.local_box.pack(side="left", fill="x", expand=True)
+        lsb.pack(side="right", fill="y")
+        self.local_box.bind("<Double-Button-1>", lambda e: self._on_local_send())
+        tk.Button(win, text="把选中的电脑文件发给手机", bg="#2a2a2a", fg="#9fd3ff", relief="flat",
+                  activebackground="#333", cursor="hand2", font=("Microsoft YaHei", 9),
+                  command=self._on_local_send).pack(anchor="e", padx=14, pady=(3, 0))
+
+        # 手机文件清单(手机侧中转文件夹,双击=取回到电脑)
+        tk.Label(win, text="手机中转文件夹(点「刷新」查看手机上收到的文件)",
+                 bg="#1e1e1e", fg="#9aa0a6",
+                 font=("Microsoft YaHei", 9)).pack(anchor="w", padx=16, pady=(10, 2))
+        listrow = tk.Frame(win, bg="#1e1e1e")
+        listrow.pack(fill="both", expand=True, padx=14)
+        self.listbox = tk.Listbox(listrow, bg="#232323", fg="#d6d6d6", selectbackground="#2f6fb0",
+                                  relief="flat", font=("Microsoft YaHei", 10),
+                                  activestyle="none", highlightthickness=0)
+        sb = tk.Scrollbar(listrow, orient="vertical", command=self.listbox.yview)
+        self.listbox.configure(yscrollcommand=sb.set)
+        self.listbox.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        self.listbox.bind("<Double-Button-1>", lambda e: self._on_pull())
+
+        row2 = tk.Frame(win, bg="#1e1e1e")
+        row2.pack(fill="x", padx=14, pady=(6, 4))
+        tk.Button(row2, text="刷新手机文件", bg="#2a2a2a", fg="#9fd3ff", relief="flat",
+                  activebackground="#333", cursor="hand2", font=("Microsoft YaHei", 10),
+                  command=self._on_refresh).pack(side="left")
+        tk.Button(row2, text="取回选中到电脑", bg="#2a2a2a", fg="#ffd27f", relief="flat",
+                  activebackground="#333", cursor="hand2", font=("Microsoft YaHei", 10),
+                  command=self._on_pull).pack(side="right")
+
+        # 打开窗口时先载入电脑收到的文件,让用户立刻看到成果
+        self._refresh_local()
+        try:
+            win.protocol("WM_DELETE_WINDOW", self._hide)
+        except Exception:
+            pass
+
+    def _hsize(self, b):
+        try:
+            b = int(b)
+        except Exception:
+            return "?"
+        for unit in ("B", "KB", "MB", "GB", "TB"):
+            if b < 1024 or unit == "TB":
+                return "%.0f %s" % (b, unit) if unit == "B" else "%.1f %s" % (b, unit)
+            b /= 1024.0
+
+    def _on_send(self):
+        from tkinter import filedialog
+        try:
+            path = filedialog.askopenfilename(
+                parent=self.win, title="选择要发送到手机的文件",
+                initialdir=_file_base())
+        except Exception:
+            return
+        if not path:
+            return
+        self.set_status("正在发送 %s …" % os.path.basename(path))
+        push_local_file_to_phone(path)
+
+    # ---- 电脑收到的文件(本地中转目录根层) ----
+    def _refresh_local(self):
+        """重读电脑中转目录(收到的文件就存在这),并刷新列表。"""
+        try:
+            self._local = _list_entries("") or []
+        except Exception:
+            self._local = []
+        self._redraw_local()
+
+    def _redraw_local(self):
+        try:
+            self.local_box.delete(0, "end")
+        except Exception:
+            return
+        if not self._local:
+            self.local_box.insert("end", "(电脑收到的文件会显示在这里,如:从手机传上来的图片)")
+            return
+        for e in self._local:
+            if e.get("d"):
+                self.local_box.insert("end", "📁 %s" % e["n"])
+            else:
+                self.local_box.insert("end", "%s   (%s)" % (e["n"], self._hsize(e.get("s", 0))))
+
+    def _on_local_send(self):
+        try:
+            sel = self.local_box.curselection()
+        except Exception:
+            return
+        if not sel:
+            self.set_status("先在「电脑收到的文件」里选中一项,再点发送/双击")
+            return
+        idx = sel[0]
+        if idx < 0 or idx >= len(self._local):
+            return
+        e = self._local[idx]
+        if e.get("d"):
+            self.set_status("暂不支持发送文件夹,请选单个文件")
+            return
+        path = os.path.join(_file_base(), e["n"])
+        self.set_status("正在发送 %s 到手机…" % e["n"])
+        push_local_file_to_phone(path)
+
+    def _on_refresh(self):
+        self.set_status("正在读取手机文件夹…")
+        request_phone_list()
+
+    def _on_pull(self):
+        sel = self.listbox.curselection()
+        if not sel:
+            self.set_status("请先在列表中选中一个文件再取回")
+            return
+        idx = sel[0]
+        if idx >= len(self._entries):
+            return
+        e = self._entries[idx]
+        if e.get("d"):
+            self.set_status("仅支持取回文件,暂不支持取回文件夹")
+            return
+        self.set_status("正在取回 %s …" % e["n"])
+        pull_phone_file(e["n"])
+
+    def set_status(self, msg):
+        try:
+            self.status.config(text=msg)
+        except Exception:
+            pass
+
+    def update_evt(self, evt):
+        """由 GUI 事件线喂入:手机目录清单 / 传输状态 / 上传完成。"""
+        kind = evt.get("kind")
+        if kind == "phl_result":
+            self._apply_phone_list(evt.get("payload") or {})
+        elif kind == "file_note":
+            self.set_status(evt.get("msg", ""))
+        elif kind == "upload_done":
+            name = evt.get("name", "")
+            size = evt.get("size", 0)
+            self._refresh_local()   # 新文件立刻出现在「电脑收到的文件」列表
+            self.set_status("已收到 %s(%s),存到电脑中转目录"
+                            % (name, self._hsize(size)))
+
+    def _apply_phone_list(self, payload):
+        entries = payload.get("entries")
+        if entries is None:
+            self._entries = []
+            self._phone_dir = payload.get("path", "")
+            self._redraw()
+            self.set_status("读取手机文件夹失败: %s" % payload.get("err", "未知错误"))
+            return
+        self._phone_dir = payload.get("path", "")
+        self._entries = entries
+        self._redraw()
+        n = len(entries)
+        self.set_status("手机中转文件夹共 %d 项" % n)
+
+    def _redraw(self):
+        self.listbox.delete(0, "end")
+        if not self._entries:
+            self.listbox.insert("end", "(空文件夹)")
+            return
+        for e in self._entries:
+            if e.get("d"):
+                self.listbox.insert("end", "📁 %s" % e["n"])
+            else:
+                self.listbox.insert("end", "%s   (%s)" % (e["n"], self._hsize(e.get("s", 0))))
+
+    def _hide(self):
+        self._shown = False
+        try:
+            self.win.withdraw()
+        except Exception:
+            pass
+
+    def show(self):
+        self._shown = True
+        try:
+            self._refresh_local()   # 每次呼出都带上最新的「电脑收到的文件」
+            self.win.deiconify()
+            self.win.lift()
+            self.win.attributes("-topmost", True)
+        except Exception:
+            pass
+
+    def hide(self):
+        self._shown = False
+        try:
+            self.win.withdraw()
+        except Exception:
+            pass
+
+    def visible(self):
+        return self._shown
+
+
+def open_transfer_window():
+    """从主面板/媒体悬浮窗把文件中转站调出来(没有就现建)。"""
+    global _TRANSFER_STATION
+    if _TRANSFER_ROOT is None:
+        return
+    if _TRANSFER_STATION is None:
+        try:
+            _TRANSFER_STATION = TransferStation(tk.Toplevel(_TRANSFER_ROOT))
+        except Exception:
+            return
+    try:
+        _TRANSFER_STATION.show()
+    except Exception:
+        pass
+
+
+def transfer_feed(evt):
+    """GUI 事件 -> 文件中转站;有文件事件就自动弹出来显示结果。"""
+    global _TRANSFER_STATION
+    if _TRANSFER_STATION is None:
+        open_transfer_window()
+    if _TRANSFER_STATION is None:
+        return
+    try:
+        _TRANSFER_STATION.show()
+        _TRANSFER_STATION.update_evt(evt)
+    except Exception:
+        pass
+
+
+def toggle_transfer_window():
+    """全局热键回调:中转站开着就收起,没开就呼出。"""
+    global _TRANSFER_STATION
+    if _TRANSFER_ROOT is None:
+        return
+    if _TRANSFER_STATION is not None and _TRANSFER_STATION.visible():
+        try:
+            _TRANSFER_STATION.hide()
+        except Exception:
+            pass
+        return
+    open_transfer_window()
+
+
+def start_transfer_hotkey():
+    """注册全局热键呼出/收起文件中转站(Win32 RegisterHotKey,零第三方依赖)。
+
+    首选 Ctrl+Alt+T;被占用则依次退让 Ctrl+Alt+Shift+T / Ctrl+Alt+V。
+    独立线程收 WM_HOTKEY,再投进 gui_queue,由 GUI 事件循环执行。
+    """
+    if sys.platform != "win32":
+        return
+
+    def worker():
+        try:
+            import ctypes
+            from ctypes import wintypes
+            user32 = ctypes.windll.user32
+        except Exception:
+            return
+        combos = [
+            (0x0002 | 0x0001, 0x54, "Ctrl+Alt+T"),            # 首选
+            (0x0002 | 0x0001 | 0x0004, 0x54, "Ctrl+Alt+Shift+T"),
+            (0x0002 | 0x0001, 0x56, "Ctrl+Alt+V"),
+        ]
+        _base = 0x5474
+        reg_id = 0
+        for i, (mod, vk, label) in enumerate(combos):
+            if user32.RegisterHotKey(None, _base + i, mod, vk):
+                reg_id = _base + i
+                _log_line("[file] 全局热键已注册: %s 呼出/收起文件中转站" % label)
+                break
+        if not reg_id:
+            _log_line("[file] 全局热键注册失败(三个组合都已被占用)")
+            return
+        msg = wintypes.MSG()
+        while True:
+            r = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
+            if r <= 0:
+                break
+            if msg.message == 0x0312 and msg.wParam == reg_id:   # WM_HOTKEY
+                try:
+                    gui_queue.put({"kind": "transfer_toggle"})
+                except Exception:
+                    pass
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
 # ---------------------------------------------------------------------------
 # 主入口
 # ---------------------------------------------------------------------------
@@ -2481,6 +3300,7 @@ def main():
         if tk is not None:
             root = tk.Tk()
             BackgroundHost(root, ip, port, paired)
+            start_transfer_hotkey()
             root.mainloop()
         else:
             serve(port)  # 极端情况无 tkinter:纯后台监听,配对码只能靠日志
@@ -2493,10 +3313,11 @@ def main():
         status = MediaStatusWindow(tk.Toplevel(root))
         app = GuiApp(root, ip, port, paired)  # 登录成功后在 _build_main 里才启动监听
         status.set_reopen_main(app.show)      # 主面板被 X 收起后,从悬浮窗点「打开主面板」调回
+        start_transfer_hotkey()
         root.mainloop()
     else:
         print("=" * 60)
-        print("  手机触控板 —— 电脑端服务 (无 GUI 模式 + 状态悬浮窗)")
+        print("  若息 · Terminal Max —— 电脑端服务 (无 GUI 模式 + 状态悬浮窗)")
         print(f"  本机 IP  : {ip}")
         print(f"  端口     : {port}")
         print(f"  配对状态 : {'已配对(有密钥)' if paired else '未配对'}")
@@ -2509,6 +3330,7 @@ def main():
             root = tk.Tk()
             MediaStatusWindow(root)  # root 即状态窗,关窗即退出
             threading.Thread(target=serve, args=(port,), daemon=True).start()
+            start_transfer_hotkey()
             root.mainloop()
         else:
             serve(port)

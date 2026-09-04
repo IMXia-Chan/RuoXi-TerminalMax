@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 悬浮小球(收起态):磨砂圆球 + 互换箭头。整体可拖,原地抬手 = 滑出抽屉 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ov_ball_root"
+    android:layout_width="52dp"
+    android:layout_height="52dp"
+    android:gravity="center"
+    android:background="@drawable/ov_ball_bg"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/ov_ball_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_swap"
+        android:alpha="0.92" />
+</FrameLayout>

@@ -16,4 +16,19 @@
         <item name="android:paddingEnd">14dp</item>
         <item name="android:stateListAnimator">@null</item>
     </style>
+
+    <!-- 开屏动画:纯黑底,首帧前不闪出任何栏/色。
+         windowSplashScreen* 是 Android 12+ 系统开屏(首帧前那个带图标的画面),这里把背景压成
+         纯黑、图标换成全透明,省得进 app 时把桌面图标闪出来。API<31 的机型不认识这些属性,
+         自动忽略,不影响。 -->
+    <style name="Theme.Touchpad.Splash" parent="Theme.Touchpad">
+        <item name="android:windowBackground">@color/splash_bg</item>
+        <item name="android:statusBarColor">@color/splash_bg</item>
+        <item name="android:navigationBarColor">@color/splash_bg</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_system_icon_blank</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+    </style>
 </resources>

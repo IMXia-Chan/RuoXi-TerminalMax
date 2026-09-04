@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 侧边磨砂条(智能侧边栏式):细竖条平时贴在屏幕一侧;点它从同侧滑出文件抽屉。
+     16x100 的触摸目标,磨砂外观由 ov_handle_bg 呈现。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="16dp"
+    android:layout_height="100dp">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/ov_handle_bg" />
+
+    <!-- 中央淡色小把手线,暗示可拖动 -->
+    <View
+        android:layout_width="3dp"
+        android:layout_height="42dp"
+        android:layout_gravity="center"
+        android:background="@drawable/ov_handle_knob" />
+</FrameLayout>

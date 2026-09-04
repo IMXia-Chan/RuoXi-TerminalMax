@@ -40,6 +40,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:minWidth="86dp"
+                android:background="@drawable/btn_glass"
+                android:textColor="@color/glass_text"
+                android:textStyle="bold"
                 android:text="@string/scan" />
 
             <Button
@@ -48,6 +51,9 @@
                 android:layout_height="wrap_content"
                 android:minWidth="86dp"
                 android:layout_marginTop="8dp"
+                android:background="@drawable/btn_glass"
+                android:textColor="@color/glass_text"
+                android:textStyle="bold"
                 android:text="@string/disconnect" />
 
             <Button
@@ -56,7 +62,9 @@
                 android:layout_height="wrap_content"
                 android:minWidth="86dp"
                 android:layout_marginTop="8dp"
-                android:background="@drawable/btn_secondary"
+                android:background="@drawable/btn_glass"
+                android:textColor="@color/glass_text"
+                android:textStyle="bold"
                 android:text="@string/keyboard" />
 
             <Button
@@ -65,8 +73,10 @@
                 android:layout_height="wrap_content"
                 android:minWidth="86dp"
                 android:layout_marginTop="8dp"
-                android:background="@drawable/btn_secondary"
-                android:text="镜像:均衡" />
+                android:background="@drawable/btn_glass"
+                android:textColor="@color/glass_text"
+                android:textStyle="bold"
+                android:text="镜像:高清" />
 
         </LinearLayout>
 

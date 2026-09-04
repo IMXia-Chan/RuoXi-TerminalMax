@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 右侧透明磨砂「书签条」:细窄竖条贴屏幕右缘;点它 / 向左滑 = 呼出中转站面板 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/ov_bookmark_bg" />
+
+    <!-- 中央一条竖线,提示可点可拉 -->
+    <View
+        android:layout_width="3dp"
+        android:layout_height="34dp"
+        android:layout_gravity="center"
+        android:background="@drawable/ov_handle_knob" />
+</FrameLayout>

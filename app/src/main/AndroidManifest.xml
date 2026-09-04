@@ -19,22 +19,44 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 引导用户允许忽略电池优化,绕开 ColorOS 的 Stop FGS timeout 强停 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 文件互传中转站:真·系统级悬浮球(悬浮在任意 App 之上),需用户到设置里授权 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 呼出面板/书签条:弹出收起时 50/30ms 短震反馈 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Touchpad">
+
+        <!-- 开屏动画:点桌面图标先进这里,播完淡出再进 MainActivity -->
+        <activity
+            android:name=".SplashActivity"
+            android:exported="true"
+            android:screenOrientation="sensorLandscape"
+            android:theme="@style/Theme.Touchpad.Splash"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden">
+            <!-- 任意应用「分享」文件 -> 选「超级终端」-> 直接传到电脑中转目录 -->
             <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
 

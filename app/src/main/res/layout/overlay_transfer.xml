@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 文件中转站 · 主面板:悬浮方卡。整屏窗口,上/中/下三段(上下是透明收起区,中段右侧是
+     白玻璃圆角卡片)。卡片内自顶向下:迷你图标顶栏(文件标 + 发送/目录/收起) / 分段(电脑|手机)
+     / 提示行 / 路径条 / 固定垃圾桶栏(列表顶上,不随列表滚动) / 两列文件网格(占满剩余,内部滚动)
+     / 进度条。
+     卡片以外的上/下/左整片可点 = 收起。
+     横/竖屏形状由代码按权重调整:gap 视图加了 id(ov_gap_top/ov_mid/ov_gap_left/ov_gap_bot)。
+     顶栏不写字:一个文件图标代表"这里是文件中转站",两个功能钮只留图标,把高度让给文件列表。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ov_scrim"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:weightSum="8">
+
+    <!-- 顶部收起区(卡片以上) -->
+    <View
+        android:id="@+id/ov_gap_top"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- 中部:左侧收起区 + 右侧悬浮卡 -->
+    <LinearLayout
+        android:id="@+id/ov_mid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="6"
+        android:orientation="horizontal"
+        android:weightSum="20">
+
+        <!-- 左侧收起区 -->
+        <View
+            android:id="@+id/ov_gap_left"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="11" />
+
+        <!-- 白玻璃悬浮卡:卡片内点空白不收起(clickable),按钮/列表仍正常 -->
+        <LinearLayout
+            android:id="@+id/ov_root"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="9"
+            android:orientation="vertical"
+            android:background="@drawable/ov_drawer_bg"
+            android:clipToOutline="true"
+            android:clickable="true"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="6dp">
+
+            <!-- ===== 顶栏:文件小图标 + 功能图标(不写字) ===== -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- 页面身份标:单个"文件"图标,提示这里是文件中转站(不是传输图标) -->
+                <ImageView
+                    android:id="@+id/ov_logo"
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:padding="4dp"
+                    android:scaleType="fitCenter"
+                    android:background="@drawable/hub_icon_circle"
+                    android:src="@drawable/ic_file"
+                    android:tint="#FF5B8DEF"
+                    android:tintMode="src_in"
+                    android:contentDescription="文件中转站" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <!-- 接收目录:选手机收件夹(只留图标) -->
+                <ImageButton
+                    android:id="@+id/ov_btn_dir"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="6dp"
+                    android:scaleType="fitCenter"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/ov_icon_btn"
+                    android:src="@drawable/ic_folder_open"
+                    android:tint="#FF2B3445"
+                    android:tintMode="src_in"
+                    android:contentDescription="接收目录" />
+
+                <!-- 选文件发电脑:主按钮给实底圆(只留图标) -->
+                <ImageButton
+                    android:id="@+id/ov_btn_send"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="6dp"
+                    android:scaleType="fitCenter"
+                    android:layout_marginEnd="4dp"
+                    android:background="@drawable/ov_fab_blue"
+                    android:src="@drawable/ic_send"
+                    android:tint="#FFFFFFFF"
+                    android:tintMode="src_in"
+                    android:contentDescription="选文件发电脑" />
+
+                <ImageButton
+                    android:id="@+id/ov_close"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="6dp"
+                    android:scaleType="fitCenter"
+                    android:background="@drawable/ov_icon_btn"
+                    android:src="@drawable/ic_chev"
+                    android:tint="#FF2B3445"
+                    android:tintMode="src_in"
+                    android:contentDescription="收起中转站" />
+            </LinearLayout>
+
+            <!-- ===== 分段:电脑文件 | 手机文件 ===== -->
+            <LinearLayout
+                android:id="@+id/ov_seg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal"
+                android:background="@drawable/ov_seg_track"
+                android:padding="3dp">
+
+                <Button
+                    android:id="@+id/ov_tab_pc"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:background="@drawable/ov_tab_bg"
+                    android:text="电脑文件"
+                    android:textColor="@drawable/ov_tab_text"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/ov_tab_phone"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:background="@drawable/ov_tab_bg"
+                    android:text="手机文件"
+                    android:textColor="@drawable/ov_tab_text"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- ===== 提示行(模式提示/传输结果/空态) ===== -->
+            <TextView
+                android:id="@+id/ov_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:singleLine="true"
+                android:ellipsize="middle"
+                android:textColor="#8F263238"
+                android:textSize="10sp"
+                android:text="点文件拉到手机 · 按住文件拖到上方垃圾桶删除" />
+
+            <!-- ===== 电脑子目录路径条 ===== -->
+            <LinearLayout
+                android:id="@+id/ov_nav"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <ImageButton
+                    android:id="@+id/ov_btn_back"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="5dp"
+                    android:scaleType="fitCenter"
+                    android:background="@drawable/ov_icon_btn"
+                    android:src="@drawable/ic_chev"
+                    android:tint="#FF2B3445"
+                    android:tintMode="src_in"
+                    android:contentDescription="返回上级" />
+
+                <TextView
+                    android:id="@+id/ov_path"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:singleLine="true"
+                    android:ellipsize="start"
+                    android:textColor="#8F263238"
+                    android:textSize="11sp"
+                    android:text="/" />
+            </LinearLayout>
+
+            <!-- ===== 固定垃圾桶栏(在列表顶上,不随列表滚动;长按文件拖到这里删除) ===== -->
+            <LinearLayout
+                android:id="@+id/ov_trash"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:background="@drawable/ov_trash_bg"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <ImageView
+                    android:id="@+id/ov_trash_icon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_trash"
+                    android:tint="#C26A70"
+                    android:tintMode="src_in" />
+
+                <TextView
+                    android:id="@+id/ov_trash_txt"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="拖到这里删除"
+                    android:textColor="#9A263238"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <!-- ===== 文件网格(两列,占满剩余,内部滚动) ===== -->
+            <ScrollView
+                android:id="@+id/ov_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="2dp"
+                android:clipToPadding="false"
+                android:fillViewport="true"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/ov_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingBottom="2dp" />
+            </ScrollView>
+
+            <!-- ===== 传输进度条(平时隐藏) ===== -->
+            <LinearLayout
+                android:id="@+id/ov_prog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:id="@+id/ov_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="5dp"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:progressDrawable="@drawable/ov_progress"
+                    android:max="1000"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 底部收起区(卡片以下) -->
+    <View
+        android:id="@+id/ov_gap_bot"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+</LinearLayout>

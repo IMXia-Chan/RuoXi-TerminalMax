@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 上传箭头 + 托盘 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,3 L8,7 h2.5 v7 h3 V7 H16 Z M4,17 H20 V19.2 A0.8,0.8 0 0 1 19.2,20 H4.8 A0.8,0.8 0 0 1 4,19.2 Z" />
+</vector>

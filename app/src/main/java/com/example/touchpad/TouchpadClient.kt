@@ -17,6 +17,7 @@ import java.net.Socket
 import java.net.SocketTimeoutException
 import java.nio.ByteBuffer
 import java.security.KeyStore
+import java.security.MessageDigest
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -63,12 +64,24 @@ class TouchpadClient(context: Context) {
         fun onFrame(jpeg: ByteArray, screenW: Int, screenH: Int) // 收到一帧屏幕画面
         fun onMediaCommand(cmd: String)  // 电脑端反向控制:切换摄像头/麦克风
         fun onCursor(x: Int, y: Int) {}  // 电脑回传的真实光标位置(镜像箭头跟着它走);默认空实现
+        // ---- 文件互传(全部默认空实现,UI 按需覆盖) ----
+        fun onFileStatus(msg: String) {}      // 传输状态(接收完成/失败/无法写入等),UI 用来 toast
+        fun onLsResult(json: JSONObject) {}   // 电脑中转目录清单(响应手机 sendLs)
+        fun onPullRequest(name: String) {}    // 电脑要手机把中转站里 name 这个文件传回电脑
+        fun onFileProgress(name: String, done: Long, total: Long) {} // 下载进度(UI 驱动进度条)
+        fun onTransferEnded() {}              // 一次传输结束(成功/失败都调),UI 收起进度条
+        fun onPcThumb(rel: String, jpeg: ByteArray) {} // 电脑图片缩略图 JPEG(rel=相对路径)
+        fun onThumbErr(msg: String) {}        // 缩略图生成失败
+        fun onDelResult(ok: Boolean, msg: String) {}   // 电脑端文件删除回执(DELOK/DELERR)
     }
 
     var listener: Listener? = null
 
     /** 媒体流(摄像头/麦克风)连接参数。 */
     data class MediaConfig(val ip: String, val port: Int, val token: String)
+
+    /** 文件上传连接参数(电脑 IP/端口 + 认证后签发的文件 token)。 */
+    data class FileConfig(val ip: String, val port: Int, val token: String)
 
     private val appContext = context.applicationContext
     private val prefs = appContext
@@ -87,6 +100,8 @@ class TouchpadClient(context: Context) {
     private var hostIp = ""
     private var hostPort = 9527
     @Volatile private var mediaToken: String? = null
+    // 文件互传 token:认证通过后签发;手机开「上传文件」独立连接凭它(与媒体 token 同理)
+    @Volatile private var fileToken: String? = null
 
     // 免码续连:认证通过后电脑签发;掉线后凭它几分钟内静默重连,不用重输配对码
     @Volatile private var resumeToken: String? = null
@@ -148,6 +163,7 @@ class TouchpadClient(context: Context) {
         hostIp = ip
         hostPort = port
         mediaToken = null
+        fileToken = null   // 新会话:服务端认证通过后会重签
         resumeToken = loadResumeToken(ip)   // 跨重启免密:读上次存下的凭证(空=走配对)
         active.set(true)
         startHeartbeat()
@@ -221,9 +237,39 @@ class TouchpadClient(context: Context) {
                 return false
             }
 
+            // ---- 文件下载(电脑 -> 手机)状态机:FILE_START 起、FCHUNK 写盘、FILE_END 收尾 ----
+            // 服务器把 FILE_* 与镜像 FRAME 都写成「行头(+原始字节)」的原子记录(write_lock 内连写),
+            // 所以本读循环逐个消费即可,天然不会把块数据和别的行搅在一起。
+            var dlActive = false                     // 是否处于一次进行中的下载
+            var dl: PhoneTransferStore.Created? = null
+            var dlName = ""
+            var dlSize = 0L
+            var dlGot = 0L
+            var dlLastMb = -1L                        // 上次上报进度的 MB 里程碑(降噪)
+            var dlSha: MessageDigest? = null
+            var dlWriteFailed = false                // 写盘失败(SAF 目录不可写等)时仍读完丢弃,保流同步
+
+            fun abortDl() {
+                if (!dlActive) return
+                dlActive = false
+                dlName = ""
+                val created = dl
+                dl = null
+                dlSha = null
+                dlWriteFailed = false
+                val ended = dlLastMb != -1L || created != null   // 确实有过传输才通知结束
+                dlLastMb = -1L
+                if (created != null) {
+                    try { created.out?.close() } catch (_: Exception) {}
+                    PhoneTransferStore.deleteCreated(appContext, created)   // 清半截文件,不留残留
+                }
+                if (ended) post { listener?.onTransferEnded() }
+            }
+
             // 控制模式读循环;服务器断开/读异常时自动续连,续不上才结束会话。
             // input/output 由 tryRecover 换新,这里是同一条线程,无并发。
             fun readLoop() {
+                try {
                 while (active.get() && myGen == generation.get()) {
                     val line = try {
                         val i = input
@@ -233,6 +279,7 @@ class TouchpadClient(context: Context) {
                     }
                     if (line == null) {
                         Log.d(TAG, "读循环中断,尝试自动免码续连…")
+                        abortDl()   // 下载进行中连接断了:先清掉半截文件
                         if (!tryRecover()) return   // 续不上:结束会话,上报断开
                         continue
                     }
@@ -254,6 +301,10 @@ class TouchpadClient(context: Context) {
                             Log.d(TAG, "收到媒体 token")
                             post { listener?.onNewMediaToken(mediaToken ?: "") }
                         }
+                        line.startsWith("FILE_TOKEN ") -> {
+                            fileToken = line.substringAfter("FILE_TOKEN ").trim()
+                            Log.d(TAG, "收到文件互传 token")
+                        }
                         line.startsWith("RESUME ") -> {
                             val tok = line.substringAfter("RESUME ").trim()
                             resumeToken = tok
@@ -273,7 +324,131 @@ class TouchpadClient(context: Context) {
                                 }
                             }
                         }
+                        // ---- 文件互传(电脑 -> 手机 下载 / 电脑请求手机数据) ----
+                        line.startsWith("FILE_START ") -> {
+                            if (!dlActive) {
+                                val p = line.split(" ")
+                                val rawName = if (p.size >= 2) b64d(p[1]) ?: "" else ""
+                                val sz = if (p.size >= 3) p[2].toLongOrNull() ?: -1L else -1L
+                                val created = PhoneTransferStore.create(appContext, rawName)
+                                dlActive = true
+                                dl = created
+                                dlName = created?.name ?: rawName.ifEmpty { "文件" }
+                                dlSize = sz
+                                dlGot = 0
+                                dlLastMb = -1L
+                                dlWriteFailed = false
+                                dlSha = try { MessageDigest.getInstance("SHA-256") } catch (_: Exception) { null }
+                                post { listener?.onFileStatus("正在接收「${dlName}」") }
+                            }
+                        }
+                        line.startsWith("FCHUNK ") -> {
+                            val len = line.substringAfter(' ').trim().toIntOrNull()
+                            if (dlActive && len != null && len > 0) {
+                                val bytes = input?.let { readExact(it, len) }
+                                if (bytes == null) {
+                                    abortDl()          // 半截断开:清残留;下一轮 line==null 会自动续连
+                                } else {
+                                    dlGot += bytes.size
+                                    try { dlSha?.update(bytes) } catch (_: Exception) {}
+                                    // 每 ~1MB 里程碑上报一次进度(驱动悬浮窗进度条)
+                                    val mb = dlGot shr 20
+                                    if (mb != dlLastMb) {
+                                        dlLastMb = mb
+                                        val nm = dlName
+                                        val sz = dlSize
+                                        val got = dlGot
+                                        post { listener?.onFileProgress(nm, got, sz) }
+                                    }
+                                    val created = dl
+                                    if (created?.out != null && !dlWriteFailed) {
+                                        try {
+                                            created.out.write(bytes)
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "写入手机中转站失败", e)
+                                            dlWriteFailed = true
+                                        }
+                                    }
+                                }
+                            } else if (len != null && len > 0) {
+                                // 无进行中的下载却有数据块(状态错位):按声明长度吃掉,保持流同步
+                                input?.let { readExact(it, len) }
+                            }
+                        }
+                        line.startsWith("FILE_END ") -> {
+                            if (dlActive) {
+                                val shaHex = line.substringAfter(' ').trim()
+                                val created = dl
+                                val sizeOk = dlSize < 0 || dlGot == dlSize
+                                dlActive = false
+                                dl = null
+                                val digest = dlSha
+                                dlSha = null
+                                val shaOk = digest != null && digest.digest()
+                                    .joinToString("") { "%02x".format(it) }
+                                    .equals(shaHex, ignoreCase = true)
+                                val ok = created?.out != null && !dlWriteFailed && sizeOk && shaOk
+                                try { created?.out?.close() } catch (_: Exception) {}
+                                if (ok) {
+                                    post { listener?.onFileStatus("已存到手机中转站:${created?.name ?: dlName}") }
+                                } else {
+                                    created?.let { PhoneTransferStore.deleteCreated(appContext, it) }
+                                    post { listener?.onFileStatus("接收失败(校验不一致或无法写入),已丢弃") }
+                                }
+                                post { listener?.onTransferEnded() }
+                            }
+                        }
+                        line.startsWith("FILE_ERR ") -> {
+                            val msg = b64d(line.substringAfter(' ').trim())
+                            abortDl()
+                            post { listener?.onFileStatus("传输失败:${msg ?: "未知错误"}") }
+                        }
+                        line.startsWith("LSR ") -> {
+                            val s = b64d(line.substringAfter(' ').trim())
+                            if (s != null) {
+                                val obj = try { JSONObject(s) } catch (_: Exception) { null }
+                                if (obj != null) post { listener?.onLsResult(obj) }
+                            }
+                        }
+                        line.startsWith("THUMB ") -> {
+                            // 电脑图片缩略图:THUMB <b64rel> <len> + len 字节 JPEG
+                            val p = line.split(" ")
+                            if (p.size >= 3) {
+                                val rel = b64d(p[1])
+                                val len = p[2].toIntOrNull()
+                                if (rel != null && len != null && len > 0) {
+                                    val bytes = input?.let { readExact(it, len) }
+                                    if (bytes != null) post { listener?.onPcThumb(rel, bytes) }
+                                }
+                            }
+                        }
+                        line.startsWith("THUMBERR ") -> {
+                            val msg = b64d(line.substringAfter(' ').trim())
+                            post { listener?.onThumbErr(msg ?: "无法生成预览") }
+                        }
+                        line.startsWith("DELOK ") || line.startsWith("DELERR ") -> {
+                            val ok = line.startsWith("DELOK ")
+                            val msg = b64d(line.substringAfter(' ').trim())
+                                ?: (if (ok) "已移入电脑回收站" else "删除失败")
+                            post { listener?.onDelResult(ok, msg) }
+                        }
+                        line.startsWith("PHLS") -> {
+                            // 电脑中转站「刷新手机文件」:本地列清单后用 PHL 回传
+                            Thread {
+                                sendPhl(PhoneTransferStore.toJson(PhoneTransferStore.list(appContext)))
+                            }.apply { isDaemon = true }.start()
+                        }
+                        line.startsWith("PULL ") -> {
+                            val name = b64d(line.substringAfter(' ').trim())
+                            if (!name.isNullOrEmpty()) {
+                                post { listener?.onPullRequest(name) }
+                                pullFromPhone(name)   // 自动把该文件从手机中转站传回电脑
+                            }
+                        }
                     }
+                }
+                } finally {
+                    abortDl()   // 任何退出路径:清掉未完成的下载残留
                 }
             }
 
@@ -474,6 +649,75 @@ class TouchpadClient(context: Context) {
         return MediaConfig(hostIp, hostPort, t)
     }
 
+    /** 文件上传连接参数(电脑 IP/端口 + 认证通过签发的文件 token);未认证返回 null。 */
+    fun getFileConfig(): FileConfig? {
+        val t = fileToken ?: return null
+        if (hostIp.isEmpty()) return null
+        return FileConfig(hostIp, hostPort, t)
+    }
+
+    /** 请求列电脑中转目录某层(空/"."=根)。电脑回 LSR,经 onLsResult 回调。
+     *  注意:根目录必须发 "." 而非空串——空 payload 会让线格式变成 "LS <seq>  <sig>"
+     *  (连续两空格),服务端 split 后字段数不对、签名也重建不一致,整条会被拒。 */
+    fun sendLs(relpath: String = "") {
+        val r = if (relpath.isEmpty() || relpath == "/") "." else relpath
+        val b64 = Base64.encodeToString(r.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        sendSigned("LS", b64)
+    }
+
+    /** 请求把电脑中转目录里的 relpath 拉到手机(存进手机中转站)。 */
+    fun sendGet(relpath: String) {
+        val b64 = Base64.encodeToString(relpath.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        sendSigned("GET", b64)
+    }
+
+    /** 把手机中转目录清单回传给电脑(响应电脑 PHLS)。json 形如 {"entries":[...]}。 */
+    fun sendPhl(json: String) {
+        val b64 = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        sendSigned("PHL", b64)
+    }
+
+    /** 请求电脑端生成并下发某张图片的缩略图 JPEG(列电脑目录时逐张发)。 */
+    fun sendThumb(relpath: String) {
+        val b64 = Base64.encodeToString(relpath.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        sendSigned("THUMB", b64)
+    }
+
+    /** 请电脑把中转目录里的某文件移入回收站(可恢复,不会真删)。 */
+    fun sendDel(relpath: String) {
+        val b64 = Base64.encodeToString(relpath.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        sendSigned("DEL", b64)
+    }
+
+    /**
+     * 电脑请手机把中转站里的 name 传回电脑(PULL)。手机用文件 token 另开上传连接完成。
+     * 上传在后台线程进行,结果经 onFileStatus 回调(已 post 到 UI 线程)。
+     */
+    private fun pullFromPhone(name: String) {
+        val cfg = getFileConfig()
+        if (cfg == null) {
+            post { listener?.onFileStatus("上传通道未就绪,无法回传「$name」") }
+            return
+        }
+        val uri = PhoneTransferStore.findUri(appContext, name)
+        if (uri == null) {
+            post { listener?.onFileStatus("手机中转站里没有「$name」") }
+            return
+        }
+        val resolver = appContext.contentResolver
+        val size = if (uri.scheme == "content") {
+            PhoneTransferStore.sizeOf(appContext, uri)
+        } else {
+            runCatching { java.io.File(uri.path ?: "").length() }.getOrDefault(-1L)
+        }
+        FileTransfer.upload(
+            ip = cfg.ip, port = cfg.port, token = cfg.token,
+            name = name, knownSize = size,
+            openInput = { FileTransfer.openUriStream(resolver, uri) },
+            onResult = { ok, msg -> post { listener?.onFileStatus(msg) } },
+        )
+    }
+
     fun submitPin(pin: String) {
         pinQueue.offer(pin)
     }
@@ -493,6 +737,7 @@ class TouchpadClient(context: Context) {
         connected.set(false)
         sessionKey = null
         mediaToken = null
+        fileToken = null
         resumeToken = null   // 仅清内存;盘上加密凭证保留——下次 connect()/重启 App 在几分钟内仍免密自动连
         sendQueue.clear()   // 丢弃上一个会话未发出的残留指令,避免串到新连接
         cleanup()
@@ -743,6 +988,13 @@ class TouchpadClient(context: Context) {
                 off += r
             }
             return buf
+        }
+
+        /** 解码文件互传协议里的 base64 文本载荷;非法返回 null。 */
+        private fun b64d(s: String): String? = try {
+            String(Base64.decode(s, Base64.NO_WRAP), Charsets.UTF_8)
+        } catch (_: Exception) {
+            null
         }
 
         // ---- HMAC ----

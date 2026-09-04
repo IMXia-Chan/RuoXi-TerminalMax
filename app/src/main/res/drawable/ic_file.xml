@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通用文件图标(右上角折角,evenOdd 挖空) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M13.5,3 H7.2 C5.9,3 5,3.9 5,5.2 v13.6 C5,20.1 5.9,21 7.2,21 h9.6 C18.1,21 19,20.1 19,18.8 V8.5 Z M13.5,3 v5.5 H19 Z" />
+</vector>

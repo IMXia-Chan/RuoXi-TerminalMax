@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 中转站(呼出首页):悬浮方卡。整屏窗口:上/下各留 1/8 空、右侧约 45% 白玻璃圆角卡片;
+     卡片以外(上/下/左)整片都可点 = 收起。两个大卡片(文件传输/快捷启动)无副标题小字。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/hub_scrim"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:weightSum="8">
+
+    <!-- 顶部收起区(卡片以上;id 供竖屏自适应权重) -->
+    <View
+        android:id="@+id/hub_gap_top"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- 中部:左侧收起区 + 右侧悬浮卡(约 45% 宽;id 供竖屏自适应) -->
+    <LinearLayout
+        android:id="@+id/hub_mid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="6"
+        android:orientation="horizontal"
+        android:weightSum="20">
+
+        <!-- 左侧收起区 -->
+        <View
+            android:id="@+id/hub_gap_left"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="11" />
+
+        <!-- 白玻璃悬浮卡:卡片内部点空白处不收起(clickable=true 吃掉),按钮仍可点 -->
+        <LinearLayout
+            android:id="@+id/hub_panel"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="9"
+            android:orientation="vertical"
+            android:background="@drawable/ov_hub_glass"
+            android:clipToOutline="true"
+            android:clickable="true"
+            android:paddingStart="16dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="18dp">
+
+            <!-- ===== 标题栏 ===== -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="中转站"
+                    android:textColor="#E4263238"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/hub_close"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="7dp"
+                    android:scaleType="fitCenter"
+                    android:background="@drawable/ov_icon_btn_dark"
+                    android:src="@drawable/ic_chev"
+                    android:tint="#FF2B3445"
+                    android:tintMode="src_in"
+                    android:contentDescription="收起中转站" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="14dp"
+                android:background="#1A000000" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="常用功能"
+                android:textColor="#FF263238"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <!-- ===== 功能卡片(两个大卡片,无副标题小字) ===== -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical">
+
+                <!-- 文件传输 -->
+                <LinearLayout
+                    android:id="@+id/hub_card_file"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/ov_card_bg"
+                    android:padding="12dp">
+
+                    <ImageView
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:padding="10dp"
+                        android:src="@drawable/ic_swap"
+                        android:tint="#FF5B8DEF"
+                        android:tintMode="src_in"
+                        android:background="@drawable/hub_icon_circle" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="13dp"
+                        android:text="文件传输"
+                        android:textColor="#E4263238"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chev"
+                        android:tint="#66000000"
+                        android:tintMode="src_in" />
+                </LinearLayout>
+
+                <!-- 快捷启动 -->
+                <LinearLayout
+                    android:id="@+id/hub_card_quick"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/ov_card_bg"
+                    android:padding="12dp">
+
+                    <ImageView
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:padding="10dp"
+                        android:src="@drawable/ic_quick"
+                        android:tint="#FFEF8A3C"
+                        android:tintMode="src_in"
+                        android:background="@drawable/hub_icon_circle" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="13dp"
+                        android:text="快捷启动"
+                        android:textColor="#E4263238"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:src="@drawable/ic_chev"
+                        android:tint="#66000000"
+                        android:tintMode="src_in" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="20dp"
+                android:background="#1A000000" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="收起:点卡片以外任意位置"
+                android:textColor="#8A263238"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 底部收起区(卡片以下;id 供竖屏自适应) -->
+    <View
+        android:id="@+id/hub_gap_bot"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+</LinearLayout>
