@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  同一块磨砂玻璃,**红了** —— 「松手这句话就不发出去」。
+
+  ★★ 2026-10-05 用户原话:
+     > 「他的房间,和悬浮窗,**往上滑还是不要有箭头**。垃圾桶,等等,
+     >   **就红色光晕就行**」
+
+  ## 为什么是一张 drawable,而不是一个图标
+
+  在这之前,两个地方各用了一个**图标**去说这件事:
+    · 房间那条:字幕上写了一句 `↥ 松手就不发出去`(那个 `↥` 就是他不想要的箭头)
+    · 悬浮球拖到底:一个画着垃圾桶的圆(`ic_trash`)
+  他要的是**一个都不要** —— 只留**红色光晕**。
+
+  做成「红光从中心散出来」而不是「贴一个红图标」,是因为这两件事在**同一个屏幕上
+  是有分工的**:图标说的是「这是什么」,光说的是「**你现在松手会怎样**」。
+  这里要答的永远是后者,而且要在**手指还按着**的时候答 —— 光比字快,也比字准。
+
+  ## 两层,少一层都不成立
+
+  1. **底下一层纯红光**(径向,从中心散到边上) —— 它从玻璃**透出来**,
+     所以看起来是这块玻璃自己在亮,不是贴上去一块红纸。
+  2. **上面还是那块玻璃本身** —— 角度、圆角、高光、白描边的粗细
+     和 [her_glass_pill] **一字不差**,只把描边换成红的。玻璃的棱跟着红,
+     「整块红了」才没有歧义。
+
+  ★★ 2026-10-06:[her_glass_pill] 补了「顶上一道高光」+「下半透一点她的粉」,
+    这一块**跟着补上**,描边照旧是红的 —— 不然那块红玻璃会比它替换掉的那块**旧一代**,
+    上滑那一下会看得出一跳(同一块东西换了张脸)。
+
+  ★ 红色取的是**和垃圾桶红光同一个色号**(`#E53E3E` 系)——
+    同一个意思在同一个屏幕上用两种红,是没有道理的。
+  ★ 它**只在取消区里出现**,松手就换回 [her_glass_pill]。平时屏幕上没有红。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ① 红光:从中心散出去,边上淡到几乎没有 —— 这就是那个「光晕」 -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="26dp" />
+            <gradient
+                android:type="radial"
+                android:centerX="0.5"
+                android:centerY="0.5"
+                android:gradientRadius="50%p"
+                android:startColor="#99E53E3E"
+                android:centerColor="#59E53E3E"
+                android:endColor="#1FE53E3E" />
+        </shape>
+    </item>
+
+    <!-- ② 玻璃本体:和 [her_glass_pill] 的 ① 一字不差 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#59FFFFFF"
+                android:centerColor="#33FFFFFF"
+                android:endColor="#26FFC9DE" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+    <!-- ③ 顶上的高光:和 [her_glass_pill] 的 ② 一字不差 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:centerY="0.18"
+                android:startColor="#66FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+    <!-- ④ 棱:和 [her_glass_pill] 的 ③ 同粗细,只换颜色 -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="1dp" android:color="#B3FF5252" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+</layer-list>

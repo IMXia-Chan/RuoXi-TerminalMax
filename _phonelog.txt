@@ -1,0 +1,400 @@
+19:48:15 [main] 球: ← focus_window 已切到前台
+19:48:16 [ai-agent] 本地首字 249ms(请求发出 → 服务端吐第一个字)
+19:48:16 [ai-agent] 云端: 总 593ms | 提示 5704 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:48:16 [main] 球: → 执行 click_ui {"name":"关闭"}
+19:48:17 [main] 球: 「关闭」不在这一屏上(认得出 11 行字,但里头没有它)—— 查经验库…
+19:48:17 [main] 球: 先直接再看一眼(可能只是画面没准备好)…
+19:48:18 [main] 球: 经验库:用这个界面自己的搜索找「关闭」…
+19:48:22 [main] 球: 点到了(靠经验「search → scroll → visual」,现在置信度 90%)
+19:48:22 [main] 球: ← click_ui 已点「0 关闭」(808,119) 在「微信」 [OCR 屏幕文字]
+19:48:23 [ai-agent] 本地首字 283ms(请求发出 → 服务端吐第一个字)
+19:48:23 [ai-agent] 云端: 总 818ms | 提示 5841 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:48:31 [main] 她的球: 输入条升起
+19:48:31 [main] 她的球: 条子高 201px(屏 1080px)
+19:48:32 [main] 她的球: 条子上收工
+19:48:32 [ear] 耳: 开始听…(没人出声 45000ms 就收工,总上限 50000ms)
+19:48:32 [ear] 耳: 被打断了(共收进 0 块 = 0 ms 音频,实时字幕 0 次,已断 0 段)
+19:48:33 [main] 她的球: 条子上收工
+19:48:33 [ear] 耳: 开始听…(没人出声 45000ms 就收工,总上限 50000ms)
+19:48:33 [ear] 耳: 被打断了(共收进 0 块 = 0 ms 音频,实时字幕 0 次,已断 0 段)
+19:48:54 [main] 她的球: 条子上打字:打开edge浏览器，今天江西南昌天气怎么
+19:48:55 [ai-agent] 本地首字 363ms(请求发出 → 服务端吐第一个字)
+19:48:55 [ai-agent] 云端: 总 835ms | 提示 5688 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:48:55 [main] 球: → 执行 open_app {"name":"Edge"}
+19:48:55 [main] 球: ← open_app 已启动 msedge
+19:48:55 [main] 球: → 执行 list_hands 
+19:48:55 [main] 球: ← list_hands 成功
+19:48:57 [ai-agent] 本地首字 271ms(请求发出 → 服务端吐第一个字)
+19:48:57 [ai-agent] 云端: 总 1168ms | 提示 7577 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:48:57 [main] 球: → 执行 use_hand {"hand":"api:weather","tool":"weather_now","args":"{\"city\":\"南昌\"}"}
+19:48:57 [main] 球: → 云:天气 · weather_now {"city":"南昌"}
+19:48:59 [ai-agent] [api] ← 200 521字 2173 ms https://wttr.in/%E5%8D%97%E6%98%8C?format=j1
+19:48:59 [main] 球: ← weather_now 成功
+19:48:59 [main] 球: ← use_hand 成功
+19:49:00 [ai-agent] 本地首字 305ms(请求发出 → 服务端吐第一个字)
+19:49:00 [ai-agent] 云端: 总 1375ms | 提示 7895 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:49:32 [main] 她的球: 输入条升起
+19:49:32 [main] 她的球: 条子高 201px(屏 1080px)
+19:49:33 [main] 她的球: 条子上收工
+19:49:33 [ear] 耳: 开始听…(没人出声 45000ms 就收工,总上限 50000ms)
+19:49:33 [ear] 耳: 被打断了(共收进 0 块 = 0 ms 音频,实时字幕 0 次,已断 0 段)
+19:49:49 [main] 她的球: 条子上打字:把edge调成最大屏
+19:49:57 [ai-agent] 本地放弃:等了 8222ms —— 一个字都没吐出来(卡在预填充,不是慢)(转云端,这 8222ms 白等)
+19:49:57 [main] 球: 本地一个字都没吐出来(卡在预填充,不是慢),转云端…
+19:49:58 [ai-agent] 本地首字 286ms(请求发出 → 服务端吐第一个字)
+19:49:58 [ai-agent] 云端: 总 793ms | 提示 5813 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:49:58 [main] 球: → 执行 focus_window {"title":"Edge"}
+19:49:58 [main] 球: ← focus_window 已切到前台
+19:49:58 [main] 球: 本地刚才没响应,这轮先用云端。
+19:49:59 [ai-agent] 本地首字 335ms(请求发出 → 服务端吐第一个字)
+19:49:59 [ai-agent] 云端: 总 868ms | 提示 5890 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:49:59 [main] 球: → 执行 hotkey {"keys":"alt+F10"}
+19:49:59 [main] 球: ← hotkey 失败:一次只能按一个主键
+19:50:00 [ai-agent] 本地首字 294ms(请求发出 → 服务端吐第一个字)
+19:50:00 [ai-agent] 云端: 总 943ms | 提示 6012 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:50:00 [main] 球: → 执行 click_ui {"name":"最大化"}
+19:50:00 [main] 球: ← click_ui 已点「最大化」(1020,40) 在「新标签页 - 个人 - Microsoft​ Edge」
+19:50:01 [ai-agent] 本地首字 319ms(请求发出 → 服务端吐第一个字)
+19:50:01 [ai-agent] 云端: 总 953ms | 提示 6117 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:50:32 [main] 她的球: 条子上打字:用edge搜抖音
+19:50:32 [ai-agent] 本地首字 301ms(请求发出 → 服务端吐第一个字)
+19:50:33 [ai-agent] 云端: 总 758ms | 提示 5861 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:50:33 [main] 球: → 执行 search {"query":"抖音"}
+19:50:34 [main] 球: ← search 已搜出去,页面:「抖音 - 搜索 - 个人 - Microsoft​ Edge」
+19:50:35 [ai-agent] 本地首字 221ms(请求发出 → 服务端吐第一个字)
+19:50:35 [ai-agent] 云端: 总 713ms | 提示 6026 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:50:50 [main] 她的球: 条子上打字:打开第一个抖音记录美好生活
+19:50:50 [main] 球: 快通道:open_app {"name":"第一个抖音记录美好生活"} —— 不用模型
+19:50:50 [main] 球: 快通道没走通(找不到应用「第一个抖音记录美好生活」),交给模型
+19:50:51 [ai-agent] 本地首字 280ms(请求发出 → 服务端吐第一个字)
+19:50:51 [ai-agent] 云端: 总 1091ms | 提示 5897 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+19:50:51 [main] 球: → 执行 click_ui {"name":"抖音记录美好生活"}
+19:50:53 [main] 球: 界面上没有叫「抖音记录美好生活」的控件,改用视觉定位(要几分钟,别切走)…
+19:50:53 [main] 球:   正在拉起视觉模型(第一次要等十几秒)…
+19:50:53 [ai-agent] 拉起「眼」…
+19:50:53 [ruoxi-眼-start] [眼] 命令: /data/app/~~gJNlVaGXSHXg-wqnpltHYw==/com.example.touchpad-x5QGvXqA7rjNDlPhDrNYsg==/lib/arm64/libllamaserver.so -m /storage/emulated/0/Android/data/com.example.touchpad/files/models/eye.gguf --mmproj /storage/emulated/0/Android/data/com.example.touchpad/files/models/mmproj.gguf --alias eye --jinja -c 4096 --image-min-tokens 1024 --cache-type-k q8_0 --cache-type-v q8_0 --host 127.0.0.1 --port 8081
+19:50:53 [ruoxi-眼-start] 眼: 眼 加载中…
+19:52:10 [main] 她的球: 条子上打字:打开抖音
+19:52:10 [main] 球: 她手上还有活,我先叫停 —— 已经按下去的那一下收不回来,但后面不会再做了。你这句我记着
+19:52:47 [main] 她的球: 房间前台=true
+19:52:47 [main] 她的球: 对表:enabled=true roomInFront=true → 要收起
+19:52:47 [main] [station] setHandleVisible(false) 现存=true
+19:52:48 [main] 球:✗ 她上一轮卡住了,等了 30 秒也没停下来 —— 你刚才那句我没敢塞进去,待会儿再说一次
+19:52:48 [main] 她的球: 房间前台=false
+19:52:48 [main] 她的球: 对表:enabled=true roomInFront=false → 要出来
+19:52:48 [main] [station] setHandleVisible(true) 现存=true
+19:58:02 [main] start() 被调用 explicit=false 已在跑=false
+19:58:02 [main] 状态 STARTING: 正在启动本地模型…
+19:58:02 [ruoxi-脑-start] [脑] 命令: /data/app/~~gJNlVaGXSHXg-wqnpltHYw==/com.example.touchpad-x5QGvXqA7rjNDlPhDrNYsg==/lib/arm64/libllamaserver.so -m /storage/emulated/0/Android/data/com.example.touchpad/files/models/brain.gguf --alias brain --jinja -c 8192 --cache-type-k q8_0 --cache-type-v q8_0 --slot-save-path /storage/emulated/0/Android/data/com.example.touchpad/files/slots --host 127.0.0.1 --port 8080
+19:58:02 [ruoxi-boot] HerBoot:开始盯装载,state=STARTING
+19:58:02 [ruoxi-脑-start] 状态 LOADING: 脑 加载中…
+19:58:02 [main] 耳: 原生库加载成功 ver=1.13.8 onnxruntime=1.28.2 git=11afbd00
+19:58:02 [main] 耳: 模型齐了,在 /storage/emulated/0/Android/data/com.example.touchpad/files/asr
+19:58:02 [ear-warmup] 耳: 装载识别模型…(239233841 字节)
+19:58:02 [main] 她的球: 房间前台=true
+19:58:02 [main] 她的球: 对表:enabled=true roomInFront=true → 要收起
+19:58:03 [ThreadPoolForeg] 换装:人物:用 person.vrm(person/)
+19:58:03 [main] 房间:她的嗓子是系统那副(边合成边出声)
+19:58:03 [main] 房间:TTS 音色 5 种,其中中文 0 种 (pitch=1.0 rate=0.92)
+19:58:03 [main] 房间:这会儿用的是「中文（温柔女声）」区域=chn
+19:58:03 [main] 房间:  音色「英文（男声）」区域=usa 质量=400 特性=[4]
+19:58:03 [main] 房间:  音色「中文（温柔女声）」区域=chn 质量=400 特性=[0]
+19:58:03 [main] 房间:  音色「英文（女声）」区域=usa 质量=400 特性=[6]
+19:58:03 [main] 房间:  音色「中文（明朗男声）」区域=chn 质量=400 特性=[3]
+19:58:03 [main] 房间:  音色「中文（清冷女声）」区域=chn 质量=400 特性=[5]
+19:58:03 [main] 房间:TTS 就绪(status=0 语言=1)
+19:58:03 [main] 字幕: 写上屏 → 灭·空(0 字 / 目标 5 字 / 说定=true / 打字态=false)
+19:58:04 [main] 房间:透明纸让开(场景可以点了)
+19:58:04 [main] 换装:房间配置:用 room.json(86 字节)
+19:58:04 [main] 房间:摆出 1 件东西([{"id":"self","kind":"android-self","name":"这部手机"}])
+19:58:04 [main] 她那边: 房间布置: 内置房间 关 · 背景 图 room2c.jpg(没读出来会另说一句) · 距离 ×1.5
+19:58:04 [ThreadPoolForeg] 换装:素材:用 room2c.jpg(room/)
+19:58:04 [main] 她那边: 房间物件: 1 件 [self(0.63,0.81,0.12)]
+19:58:04 [main] 她那边: 房间背景:用上了图 room2c.jpg
+19:58:05 [ear-warmup] 耳: 识别模型就绪(3231ms)
+19:58:05 [main] 人形:拍好了(432993 字节 → /data/user/0/com.example.touchpad/files/conmarn_figure.png)
+19:58:07 [main] 她的球: 房间前台=false
+19:58:07 [main] 她的球: 对表:enabled=true roomInFront=false → 要出来
+19:58:07 [main] [station] setHandleVisible(true) 现存=false
+19:58:07 [main] [station] createHandle 书签条 右侧 x=2332 y=420 屏=2374x1080
+19:58:07 [main] 她的球: 出来(人形 96x240 x=121 y=1224 物理=1080x2374 资源=1080x2374)
+19:58:08 [her-voice] 嗓子: 克隆音就绪【fp32】(5831ms / 24000Hz / 参考 266400 点 @ 24000Hz = 11.10 秒)
+19:58:08 [her-voice] 嗓子: 参考文本「以前跟在一起的时候，我记得你可粘人了。现在才过去一年就不粘人了。」
+19:58:08 [her-voice] 嗓子: 用的是 zv【fp32】(/storage/emulated/0/Android/data/com.example.touchpad/files/tts/zv)
+19:58:08 [her-voice] 嗓子: 参考音频 24000Hz / 1 声道 / 16bit
+19:58:12 [main] 她的球: 房间前台=true
+19:58:12 [main] 她的球: 对表:enabled=true roomInFront=true → 要收起
+19:58:12 [main] [station] setHandleVisible(false) 现存=true
+19:58:12 [main] 她的球: 收起
+19:58:15 [main] 耳:唤醒前台服务起来了(麦克风型,后台也听得到)
+19:58:16 [main] 她的球: 房间前台=false
+19:58:16 [main] 她的球: 对表:enabled=true roomInFront=false → 要出来
+19:58:16 [main] [station] setHandleVisible(true) 现存=true
+19:58:16 [main] 她的球: 出来(人形 96x240 x=121 y=1224 物理=1080x2374 资源=1080x2374)
+19:58:18 [main] 耳: 唤醒模型就绪(541ms)
+19:58:18 [main] 耳: 唤醒在听了(阈值 0.25,score 1.0)
+19:58:22 [wake-kws] 耳: 唤醒命中「从漫」模型听到的拼音=[c óng m àn]
+19:58:22 [main] 她的球: 房间前台=true
+19:58:22 [main] 她的球: 对表:enabled=true roomInFront=true → 要收起
+19:58:22 [main] [station] setHandleVisible(false) 现存=true
+19:58:22 [main] 她的球: 收起
+19:58:26 [main] 她的球: 房间前台=false
+19:58:26 [main] 她的球: 对表:enabled=true roomInFront=false → 要出来
+19:58:26 [main] [station] setHandleVisible(true) 现存=true
+19:58:27 [main] 耳: 唤醒在听了(阈值 0.25,score 1.0)
+19:58:27 [main] 她的球: 出来(人形 96x240 x=121 y=1224 物理=1080x2374 资源=1080x2374)
+19:58:30 [ruoxi-脑-start] 状态 READY: 本地模型就绪(:8080)
+19:58:31 [ruoxi-warmup] 工具表对账:电脑「LAPTOP-M5QBJO9M」指纹 1006dc3e0923,手机那份 15 个工具
+工具表差异(只是少块能力):click_ui 的可选参数 [window] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+工具表差异(只是少块能力):list_ui 的可选参数 [window] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+工具表差异(只是少块能力):scroll 的可选参数 [amount] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+19:58:31 [main] 她的球: 拖到垃圾桶 → 关闭悬浮窗
+19:58:31 [main] 她的球: 开关=false
+19:58:31 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+19:58:31 [main] 她的球: 收起
+19:58:31 [ruoxi-warmup] 前缀快照还原成功(5500 token),跳过冷算
+19:58:31 [ruoxi-warmup] 预热完成 540ms(用户第一轮将命中前缀缓存)
+19:58:40 [wake-kws] 耳: 唤醒命中「从漫」模型听到的拼音=[c óng m àn]
+19:58:40 [main] 她的球: 房间前台=true
+19:58:40 [main] 她的球: 对表:enabled=false roomInFront=true → 要收起
+19:58:41 [main] [station] setHandleVisible(false) 现存=true
+19:58:41 [main] 她的球: 收起
+19:59:12 [main] 她的球: 房间前台=false
+19:59:12 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+19:59:12 [main] [station] setHandleVisible(true) 现存=true
+19:59:12 [main] 她的球: 收起
+19:59:12 [main] onCreate 开始
+19:59:12 [main] start() 被调用 explicit=false 已在跑=true
+19:59:12 [ruoxi-boot] HerBoot:开始盯装载,state=READY
+19:59:12 [main] start() 返回 state=READY msg=本地模型就绪(:8080) 缺件=[] 模型=true@/storage/emulated/0/Android/data/com.example.touchpad/files/models/brain.gguf
+19:59:12 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+19:59:12 [main] 她的球: 收起
+19:59:12 [main] 扫描:开始(3 秒)
+19:59:12 [Thread-12] 开扫 timeout=3000ms
+19:59:12 [Thread-12] socket 已绑 :9528(本机 :::9528)
+19:59:12 [Thread-12] 网段共 253 个地址:10.13.57.1,10.13.57.2,10.13.57.3 …
+19:59:12 [Thread-12] 收到包 from=10.13.57.3:9528 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+19:59:12 [Thread-13] 撒完第 1 轮:27/253 个,耗时 16ms
+19:59:13 [Thread-12] 结束:共 1 台;听了 13 次,收到 1 个包,总耗时 1222ms
+19:59:13 [main] 扫描:结束,找到 1 台 → 直接连 10.13.57.3:9527
+19:59:14 [ruoxi-warmup] 前缀快照还原成功(5500 token),跳过冷算
+19:59:14 [ruoxi-warmup] 预热完成 2398ms(用户第一轮将命中前缀缓存)
+19:59:31 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+19:59:31 [main] 她的球: 收起
+19:59:31 [main] 扫描:连接进行中(connecting=true),这次扫描被挡掉了
+19:59:35 [main] 她的球: 房间前台=true
+19:59:35 [main] 她的球: 对表:enabled=false roomInFront=true → 要收起
+19:59:35 [main] [station] setHandleVisible(false) 现存=true
+19:59:35 [main] 她的球: 收起
+19:59:39 [main] 她的球: 房间前台=false
+19:59:39 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+19:59:39 [main] [station] setHandleVisible(true) 现存=true
+19:59:39 [main] 她的球: 收起
+19:59:39 [main] onCreate 开始
+19:59:39 [main] start() 被调用 explicit=false 已在跑=true
+19:59:39 [ruoxi-boot] HerBoot:开始盯装载,state=READY
+19:59:39 [main] start() 返回 state=READY msg=本地模型就绪(:8080) 缺件=[] 模型=true@/storage/emulated/0/Android/data/com.example.touchpad/files/models/brain.gguf
+19:59:39 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+19:59:40 [main] 她的球: 收起
+19:59:40 [main] 扫描:开始(3 秒)
+19:59:40 [Thread-17] 开扫 timeout=3000ms
+19:59:40 [Thread-17] socket 已绑 :9528(本机 :::9528)
+19:59:40 [Thread-17] 网段共 253 个地址:10.13.57.1,10.13.57.2,10.13.57.3 …
+19:59:40 [Thread-17] 收到包 from=10.13.57.3:9528 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+19:59:41 [ruoxi-warmup] 前缀快照还原成功(5500 token),跳过冷算
+19:59:41 [ruoxi-warmup] 预热完成 1156ms(用户第一轮将命中前缀缓存)
+19:59:41 [Thread-17] 结束:共 1 台;听了 13 次,收到 1 个包,总耗时 1242ms
+19:59:41 [main] 扫描:结束,找到 1 台 → 直接连 10.13.57.3:9527
+19:59:41 [Thread-18] 撒完第 1 轮:225/253 个,耗时 1250ms
+19:59:57 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+19:59:57 [main] 她的球: 收起
+19:59:57 [main] 扫描:连接进行中(connecting=true),这次扫描被挡掉了
+20:00:08 [main] start() 被调用 explicit=false 已在跑=false
+20:00:08 [main] 状态 STARTING: 正在启动本地模型…
+20:00:08 [ruoxi-脑-start] [脑] 命令: /data/app/~~gJNlVaGXSHXg-wqnpltHYw==/com.example.touchpad-x5QGvXqA7rjNDlPhDrNYsg==/lib/arm64/libllamaserver.so -m /storage/emulated/0/Android/data/com.example.touchpad/files/models/brain.gguf --alias brain --jinja -c 8192 --cache-type-k q8_0 --cache-type-v q8_0 --slot-save-path /storage/emulated/0/Android/data/com.example.touchpad/files/slots --host 127.0.0.1 --port 8080
+20:00:08 [ruoxi-boot] HerBoot:开始盯装载,state=STARTING
+20:00:08 [main] 耳: 原生库加载成功 ver=1.13.8 onnxruntime=1.28.2 git=11afbd00
+20:00:08 [ruoxi-脑-start] 状态 LOADING: 脑 加载中…
+20:00:08 [main] 耳: 模型齐了,在 /storage/emulated/0/Android/data/com.example.touchpad/files/asr
+20:00:08 [ear-warmup] 耳: 装载识别模型…(239233841 字节)
+20:00:08 [main] 她的球: 房间前台=true
+20:00:08 [main] 她的球: 对表:enabled=false roomInFront=true → 要收起
+20:00:09 [main] 房间:她的嗓子是系统那副(边合成边出声)
+20:00:09 [main] 房间:TTS 音色 5 种,其中中文 0 种 (pitch=1.0 rate=0.92)
+20:00:09 [main] 房间:这会儿用的是「中文（温柔女声）」区域=chn
+20:00:09 [main] 房间:  音色「英文（男声）」区域=usa 质量=400 特性=[4]
+20:00:09 [main] 房间:  音色「中文（温柔女声）」区域=chn 质量=400 特性=[0]
+20:00:09 [main] 房间:  音色「英文（女声）」区域=usa 质量=400 特性=[6]
+20:00:09 [main] 房间:  音色「中文（明朗男声）」区域=chn 质量=400 特性=[3]
+20:00:09 [main] 房间:  音色「中文（清冷女声）」区域=chn 质量=400 特性=[5]
+20:00:09 [main] 房间:TTS 就绪(status=0 语言=1)
+20:00:09 [ThreadPoolForeg] 换装:人物:用 person.vrm(person/)
+20:00:10 [main] 字幕: 写上屏 → 灭·空(0 字 / 目标 6 字 / 说定=true / 打字态=false)
+20:00:10 [main] 房间:透明纸让开(场景可以点了)
+20:00:10 [main] 换装:房间配置:用 room.json(86 字节)
+20:00:10 [main] 房间:摆出 1 件东西([{"id":"self","kind":"android-self","name":"这部手机"}])
+20:00:10 [main] 她那边: 房间布置: 内置房间 关 · 背景 图 room2c.jpg(没读出来会另说一句) · 距离 ×1.5
+20:00:10 [ThreadPoolForeg] 换装:素材:用 room2c.jpg(room/)
+20:00:10 [main] 她那边: 房间物件: 1 件 [self(0.63,0.81,0.12)]
+20:00:10 [main] 她那边: 房间背景:用上了图 room2c.jpg
+20:00:11 [ear-warmup] 耳: 识别模型就绪(3215ms)
+20:00:12 [main] 人形:拍好了(432890 字节 → /data/user/0/com.example.touchpad/files/conmarn_figure.png)
+20:00:12 [her-voice] 嗓子: 克隆音就绪【fp32】(3899ms / 24000Hz / 参考 266400 点 @ 24000Hz = 11.10 秒)
+20:00:12 [her-voice] 嗓子: 参考文本「以前跟在一起的时候，我记得你可粘人了。现在才过去一年就不粘人了。」
+20:00:12 [her-voice] 嗓子: 用的是 zv【fp32】(/storage/emulated/0/Android/data/com.example.touchpad/files/tts/zv)
+20:00:12 [her-voice] 嗓子: 参考音频 24000Hz / 1 声道 / 16bit
+20:00:14 [main] 她的球: 房间前台=false
+20:00:14 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+20:00:14 [main] [station] setHandleVisible(true) 现存=false
+20:00:14 [main] [station] createHandle 书签条 右侧 x=2332 y=420 屏=2374x1080
+20:00:14 [main] onCreate 开始
+20:00:14 [main] start() 被调用 explicit=false 已在跑=true
+20:00:14 [main] HerBoot:已有线程在盯(LOADING),不重复起
+20:00:14 [main] start() 返回 state=LOADING msg=脑 加载中… 缺件=[] 模型=true@/storage/emulated/0/Android/data/com.example.touchpad/files/models/brain.gguf
+20:00:14 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+20:00:14 [main] 扫描:开始(3 秒)
+20:00:15 [Thread-7] 开扫 timeout=3000ms
+20:00:15 [Thread-7] socket 已绑 :9528(本机 :::9528)
+20:00:15 [Thread-7] 网段共 253 个地址:10.13.57.1,10.13.57.2,10.13.57.3 …
+20:00:15 [Thread-7] 收到包 from=10.13.57.3:9528 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:00:16 [Thread-7] 收到包 from=10.13.57.3:62269 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:00:16 [Thread-7] 收到包 from=10.13.57.3:62269 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:00:16 [Thread-7] 结束:共 1 台;听了 14 次,收到 3 个包,总耗时 1361ms
+20:00:16 [main] 扫描:结束,找到 1 台 → 直接连 10.13.57.3:9527
+20:00:16 [Thread-8] 撒完第 1 轮:225/253 个,耗时 1376ms
+20:00:30 [ruoxi-脑-start] 状态 READY: 本地模型就绪(:8080)
+20:00:30 [main] start() 被调用 explicit=false 已在跑=true
+20:00:30 [main] HerBoot:已有线程在盯(READY),不重复起
+20:00:30 [ruoxi-warmup] 工具表对账:电脑「LAPTOP-M5QBJO9M」指纹 1006dc3e0923,手机那份 15 个工具
+工具表差异(只是少块能力):click_ui 的可选参数 [window] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+工具表差异(只是少块能力):list_ui 的可选参数 [window] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+工具表差异(只是少块能力):scroll 的可选参数 [amount] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+20:00:31 [ruoxi-warmup] 前缀快照还原成功(5500 token),跳过冷算
+20:00:31 [ruoxi-warmup] 预热完成 718ms(用户第一轮将命中前缀缓存)
+20:00:37 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+20:00:37 [main] 扫描:开始(3 秒)
+20:00:37 [Thread-11] 开扫 timeout=3000ms
+20:00:37 [Thread-11] socket 已绑 :9528(本机 :::9528)
+20:00:37 [Thread-11] 网段共 253 个地址:10.13.57.1,10.13.57.2,10.13.57.3 …
+20:00:37 [Thread-11] 收到包 from=10.13.57.3:9528 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:00:37 [Thread-12] 撒完第 1 轮:213/253 个,耗时 10ms
+20:00:38 [Thread-11] 收到包 from=10.13.57.3:62269 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:00:38 [Thread-11] 收到包 from=10.13.57.3:62269 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:00:38 [Thread-11] 结束:共 1 台;听了 14 次,收到 3 个包,总耗时 1222ms
+20:00:38 [main] 扫描:结束,找到 1 台 → 直接连 10.13.57.3:9527
+20:00:52 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+20:00:52 [main] 扫描:开始(3 秒)
+20:00:52 [Thread-14] 开扫 timeout=3000ms
+20:00:52 [Thread-14] socket 已绑 :9528(本机 :::9528)
+20:00:52 [Thread-14] 网段共 253 个地址:10.13.57.1,10.13.57.2,10.13.57.3 …
+20:00:52 [Thread-14] 收到包 from=10.13.57.3:9528 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:00:52 [Thread-15] 撒完第 1 轮:221/253 个,耗时 14ms
+20:00:53 [Thread-14] 结束:共 1 台;听了 13 次,收到 1 个包,总耗时 1231ms
+20:00:53 [main] 扫描:结束,找到 1 台 → 直接连 10.13.57.3:9527
+20:01:17 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+20:01:29 [main] 她的球: 对表:enabled=false roomInFront=false → 要收起
+20:01:38 [main] 她的球: 开关=true
+20:01:38 [main] 她的球: 对表:enabled=true roomInFront=false → 要出来
+20:01:38 [main] 她的球: 出来(人形 96x240 x=470 y=840 物理=2374x1080 资源=2374x1080)
+20:01:40 [main] 她的球: 输入条升起
+20:01:40 [main] 她的球: 条子高 201px(屏 1080px)
+20:01:40 [main] 她的球: 条子上收工
+20:01:41 [ear] 耳: 开始听…(没人出声 45000ms 就收工,总上限 50000ms)
+20:01:41 [ear] 耳: 被打断了(共收进 0 块 = 0 ms 音频,实时字幕 0 次,已断 0 段)
+20:01:55 [main] 她的球: 条子上打字:用edge浏览器搜索学信网
+20:02:04 [ai-agent] 本地放弃:等了 8197ms —— 一个字都没吐出来(卡在预填充,不是慢)(转云端,这 8197ms 白等)
+20:02:04 [main] 球: 本地一个字都没吐出来(卡在预填充,不是慢),转云端…
+20:02:05 [ai-agent] 本地首字 542ms(请求发出 → 服务端吐第一个字)
+20:02:05 [ai-agent] 云端: 总 1405ms | 提示 5392 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+20:02:05 [main] 球: → 执行 open_app {"name":"Edge"}
+20:02:06 [main] 球: ← open_app 已启动 msedge
+20:02:06 [main] 球: 本地刚才没响应,这轮先用云端。
+20:02:07 [ai-agent] 本地首字 196ms(请求发出 → 服务端吐第一个字)
+20:02:07 [ai-agent] 云端: 总 915ms | 提示 5511 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+20:02:07 [main] 球: → 执行 search {"query":"学信网"}
+20:02:08 [main] 球: ← search 搜索框已输入「学信网」(还没选中结果)
+20:02:09 [ai-agent] 本地首字 249ms(请求发出 → 服务端吐第一个字)
+20:02:09 [ai-agent] 云端: 总 772ms | 提示 5661 token(命中缓存 ?,真算 ? 用 ?ms = ? t/s) | 生成 ? token 用 ?ms = ? t/s
+20:02:09 [main] 球: → 执行 click_ui {"name":"学信网"}
+20:02:10 [main] 球: 界面上没有叫「学信网」的控件,改用视觉定位(要几分钟,别切走)…
+20:02:10 [main] 球:   正在拉起视觉模型(第一次要等十几秒)…
+20:02:10 [ai-agent] 拉起「眼」…
+20:02:10 [ruoxi-眼-start] [眼] 命令: /data/app/~~gJNlVaGXSHXg-wqnpltHYw==/com.example.touchpad-x5QGvXqA7rjNDlPhDrNYsg==/lib/arm64/libllamaserver.so -m /storage/emulated/0/Android/data/com.example.touchpad/files/models/eye.gguf --mmproj /storage/emulated/0/Android/data/com.example.touchpad/files/models/mmproj.gguf --alias eye --jinja -c 4096 --image-min-tokens 1024 --cache-type-k q8_0 --cache-type-v q8_0 --host 127.0.0.1 --port 8081
+20:02:10 [ruoxi-眼-start] 眼: 眼 加载中…
+20:02:28 [main] 她的球: 输入条升起
+20:02:28 [main] 她的球: 条子高 201px(屏 1080px)
+20:02:29 [main] 她的球: 条子上收工
+20:02:30 [ear] 耳: 开始听…(没人出声 45000ms 就收工,总上限 50000ms)
+20:02:30 [ear] 耳: 被打断了(共收进 0 块 = 0 ms 音频,实时字幕 0 次,已断 0 段)
+20:02:36 [main] 她的球: 房间前台=true
+20:02:36 [main] 她的球: 对表:enabled=true roomInFront=true → 要收起
+20:02:36 [main] [station] setHandleVisible(false) 现存=true
+20:02:36 [main] 她的球: 收起
+20:08:04 [main] 开机广播(android.intent.action.BOOT_COMPLETED):alive=false,不起 —— 用户关掉的不自愈
+20:16:48 [main] start() 被调用 explicit=false 已在跑=false
+20:16:48 [main] 状态 STARTING: 正在启动本地模型…
+20:16:48 [ruoxi-boot] HerBoot:开始盯装载,state=STARTING
+20:16:48 [ruoxi-脑-start] [脑] 命令: /data/app/~~gJNlVaGXSHXg-wqnpltHYw==/com.example.touchpad-x5QGvXqA7rjNDlPhDrNYsg==/lib/arm64/libllamaserver.so -m /storage/emulated/0/Android/data/com.example.touchpad/files/models/brain.gguf --alias brain --jinja -c 8192 --cache-type-k q8_0 --cache-type-v q8_0 --slot-save-path /storage/emulated/0/Android/data/com.example.touchpad/files/slots --host 127.0.0.1 --port 8080
+20:16:48 [ruoxi-脑-start] 状态 LOADING: 脑 加载中…
+20:16:48 [main] 耳: 原生库加载成功 ver=1.13.8 onnxruntime=1.28.2 git=11afbd00
+20:16:48 [main] 耳: 模型齐了,在 /storage/emulated/0/Android/data/com.example.touchpad/files/asr
+20:16:48 [ear-warmup] 耳: 装载识别模型…(239233841 字节)
+20:16:49 [main] 她的球: 房间前台=true
+20:16:49 [main] 她的球: 对表:enabled=true roomInFront=true → 要收起
+20:16:50 [ThreadPoolForeg] 换装:人物:用 person.vrm(person/)
+20:16:50 [main] 字幕: 写上屏 → 灭·空(0 字 / 目标 6 字 / 说定=true / 打字态=false)
+20:16:51 [main] 房间:她的嗓子是系统那副(边合成边出声)
+20:16:51 [main] 房间:TTS 音色 5 种,其中中文 0 种 (pitch=1.0 rate=0.92)
+20:16:51 [main] 房间:这会儿用的是「中文（温柔女声）」区域=chn
+20:16:51 [main] 房间:  音色「英文（男声）」区域=usa 质量=400 特性=[4]
+20:16:51 [main] 房间:  音色「中文（温柔女声）」区域=chn 质量=400 特性=[0]
+20:16:51 [main] 房间:  音色「英文（女声）」区域=usa 质量=400 特性=[6]
+20:16:51 [main] 房间:  音色「中文（明朗男声）」区域=chn 质量=400 特性=[3]
+20:16:51 [main] 房间:  音色「中文（清冷女声）」区域=chn 质量=400 特性=[5]
+20:16:51 [main] 房间:TTS 就绪(status=0 语言=1,补念 1 句)
+20:16:51 [main] 房间:透明纸让开(场景可以点了)
+20:16:51 [main] 换装:房间配置:用 room.json(86 字节)
+20:16:51 [main] 房间:摆出 1 件东西([{"id":"self","kind":"android-self","name":"这部手机"}])
+20:16:51 [ThreadPoolForeg] 换装:素材:用 room2c.jpg(room/)
+20:16:51 [main] 她那边: 房间布置: 内置房间 关 · 背景 图 room2c.jpg(没读出来会另说一句) · 距离 ×1.5
+20:16:51 [main] 她那边: 房间物件: 1 件 [self(0.63,0.81,0.12)]
+20:16:51 [main] 她那边: 房间背景:用上了图 room2c.jpg
+20:16:53 [her-voice] 嗓子: 克隆音就绪【fp32】(3901ms / 24000Hz / 参考 266400 点 @ 24000Hz = 11.10 秒)
+20:16:53 [her-voice] 嗓子: 参考文本「以前跟在一起的时候，我记得你可粘人了。现在才过去一年就不粘人了。」
+20:16:53 [her-voice] 嗓子: 用的是 zv【fp32】(/storage/emulated/0/Android/data/com.example.touchpad/files/tts/zv)
+20:16:53 [her-voice] 嗓子: 参考音频 24000Hz / 1 声道 / 16bit
+20:16:53 [main] 人形:拍好了(433280 字节 → /data/user/0/com.example.touchpad/files/conmarn_figure.png)
+20:16:53 [ear-warmup] 耳: 识别模型就绪(4588ms)
+20:16:56 [main] 她的球: 房间前台=false
+20:16:56 [main] 她的球: 对表:enabled=true roomInFront=false → 要出来
+20:16:56 [main] [station] setHandleVisible(true) 现存=false
+20:16:56 [main] [station] createHandle 书签条 右侧 x=2332 y=420 屏=2374x1080
+20:16:56 [main] 她的球: 出来(人形 96x240 x=470 y=840 物理=2374x1080 资源=2374x1080)
+20:16:56 [main] onCreate 开始
+20:16:56 [main] start() 被调用 explicit=false 已在跑=true
+20:16:56 [main] HerBoot:已有线程在盯(LOADING),不重复起
+20:16:56 [main] start() 返回 state=LOADING msg=脑 加载中… 缺件=[] 模型=true@/storage/emulated/0/Android/data/com.example.touchpad/files/models/brain.gguf
+20:16:56 [main] 她的球: 对表:enabled=true roomInFront=false → 要出来
+20:16:56 [main] 扫描:开始(3 秒)
+20:16:56 [Thread-7] 开扫 timeout=3000ms
+20:16:56 [Thread-7] socket 已绑 :9528(本机 :::9528)
+20:16:56 [Thread-7] 网段共 253 个地址:10.77.137.1,10.77.137.2,10.77.137.3 …
+20:16:56 [Thread-7] 收到包 from=10.77.137.3:9528 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:16:56 [Thread-7] 收到包 from=10.77.137.3:62269 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:16:56 [Thread-7] 收到包 from=10.77.137.3:62269 len=123 原文={"app": "phone-touchpad", "port": 9527, "hand": {"id": "LAPTOP-M5QBJO9M", "kind": "windows-pc", "name": "LAPTOP-M5QBJO9M
+20:16:57 [Thread-7] 结束:共 1 台;听了 15 次,收到 3 个包,总耗时 1237ms
+20:16:57 [Thread-8] 撒完第 1 轮:225/253 个,耗时 1240ms
+20:16:57 [main] 扫描:结束,找到 1 台 → 直接连 10.77.137.3:9527
+20:17:08 [ruoxi-脑-start] 状态 READY: 本地模型就绪(:8080)
+20:17:08 [main] start() 被调用 explicit=false 已在跑=true
+20:17:08 [main] HerBoot:已有线程在盯(READY),不重复起
+20:17:08 [ruoxi-warmup] 工具表对账:电脑「LAPTOP-M5QBJO9M」指纹 1006dc3e0923,手机那份 15 个工具
+工具表差异(只是少块能力):click_ui 的可选参数 [window] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+工具表差异(只是少块能力):list_ui 的可选参数 [window] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+工具表差异(只是少块能力):scroll 的可选参数 [amount] 没给模型看(通常是有意的;想放出来就改 AiAgent.kt 的 TOOL_SCHEMA,并去 eval/check_tool_drift.py 的 PC_ONLY_PARAMS 里删掉对应豁免)
+20:17:09 [ruoxi-warmup] 前缀快照还原成功(5500 token),跳过冷算
+20:17:09 [ruoxi-warmup] 预热完成 550ms(用户第一轮将命中前缀缓存)
+20:17:18 [main] 她的球: 房间前台=true
+20:17:18 [main] 她的球: 对表:enabled=true roomInFront=true → 要收起
+20:17:18 [main] [station] setHandleVisible(false) 现存=true
+20:17:18 [main] 她的球: 收起

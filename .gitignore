@@ -29,6 +29,8 @@ pc-server/server.log
 *.jks
 *.keystore
 keystore.properties
+# 备份副本:带 .bak 后缀会绕开上面三条,必须单独挡
+*.bak
 
 # ---- 本地调试/诊断产物 ----
 phone_log.txt

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「停」那两条竖线 —— **不是文字,是画出来的**。
+
+  ★ 为什么不用字形(比如 `▮▮` 或 `‖`):字形**长什么样由系统的字体决定**,我们只拿到
+    「大概是这样」。同一颗按钮在别人机器上可能窄一点、圆一点、甚至掉成一个豆腐块;
+    而这一颗是**忙态唯一的表情**,它不能说变就变。画出来的,在哪儿都一样。
+
+  ★ 尺寸是**照她现在那颗闲态按钮量出来的**(见 [btn_her_send] 的白圆 + 「↑」):
+    · 画布 24×24 对应整颗按钮的 40dp(所以这里的 1 单位 ≈ 1.67dp);
+    · 两条竖线:宽 1.9(≈3.2dp)、高 7.4(≈12.3dp)、间距 2.4(≈4dp),整体居中。
+    ★ 这两个数不是审美挑的 —— 目标是**和那颗「↑」同一个笔画分量**(粗细相当、
+      高度相当),这样两颗按钮摆在一起才像**一套**,而不是一颗新一颗旧。
+      所以以后要动,请连着 [btn_her_send] 一起动,别单独放大这两条。
+
+  ★ 颜色写死 `#160F13` = 闲态那颗箭头的字色(`refreshSendBtn` 里那个 `0xFF160F13`)。
+    同一个深色,同一个底,换的只是记号。
+
+  ★ 横屏/竖屏都不用管:它是跟着那颗 40dp 见方的按钮缩放的,而按钮本身用的是 dp。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 左那一条 -->
+    <path
+        android:fillColor="#FF160F13"
+        android:pathData="M8.9,8.3 h1.9 v7.4 h-1.9 z" />
+
+    <!-- 右那一条 -->
+    <path
+        android:fillColor="#FF160F13"
+        android:pathData="M13.2,8.3 h1.9 v7.4 h-1.9 z" />
+</vector>

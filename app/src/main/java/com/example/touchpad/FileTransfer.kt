@@ -327,6 +327,7 @@ object FileTransfer {
         Thread {
             var socket: Socket? = null
             try {
+                CloudNet.checkHost(ip)   // 云端总闸：私有地址照常放行
                 val s = Socket()
                 s.tcpNoDelay = true
                 s.connect(InetSocketAddress(ip, port), 5000)

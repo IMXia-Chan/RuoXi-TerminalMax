@@ -1,6 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 中转站(呼出首页):悬浮方卡。整屏窗口:上/下各留 1/8 空、右侧约 45% 白玻璃圆角卡片;
-     卡片以外(上/下/左)整片都可点 = 收起。两个大卡片(文件传输/快捷启动)无副标题小字。 -->
+<!--
+  书签条呼出的那一扇窗,**五层叠在一起**,由 [StationOverlay.showHubLevel] 切显隐:
+
+    ① 终端          hub_main     回到房间 / AI 助手 / 文件传输助手 / 她的悬浮窗
+    ② AI 助手       hub_hands    `HandRegistry.all()` 现填的那一列
+    ③ 电脑          hub_pc       电脑这只手自己的门牌:跟她说要做什么 / 哪一台电脑
+    ④ 哪一台电脑     hub_pick     她说「电脑」时指的是哪一台(现填)
+    ⑤ 扫描/断开连接  hub_conn     两张动作卡 —— **原本在一级,2026-10-05 沉到底层**
+
+  ★ 五层是**同一扇窗里的五个 View**,不是五扇窗。理由见 [hub_hands] 那段注释:
+    窗口那套东西(贴边、形状自适应、收起态、旋转重贴)只有一份,再开一扇就要再维护一份。
+
+  ★★ 2026-10-05 用户原话(定下上面那个五级):
+    「等一下把扫描和断开连接放到外设电脑的五级面板中,第一是终端,第二是 AI 助手,
+      第三是电脑,第四是哪一台电脑,第五是扫描+断开连接」
+
+  ★★ 2026-10-04 晚用户原话:
+    「那个书签,就留一个文件传输助手,一个 AI 助手,一个回到房间,从上往下顺序依次是
+      回到房间、AI 助手、文件传输助手,还有就是,AI 助手做成有二级界面的 ——
+      一级界面是 AI 助手本身,二级界面是 AI 助手点进去要点个电脑,她才会到最初那个
+      AI 控制电脑的页面。因为我觉得 AI 助手,应该是能直接控制不同的外设的,
+      而电脑,我已经说过,它只是一只手,之后做的外设,都可以通过这个 AI 助手快速打开」
+
+  ★ 所以这一版做了三件事,别回退:
+    1. **卡片从 5 张砍到 3 张**,顺序照他念的:回到房间 / AI 助手 / 文件传输助手。
+       砍掉的:`ConMarn`(和「回到房间」是同一个动作,重复到了可笑的地步)、
+       「她的悬浮窗」(它是个**开关**不是一个去处 —— 见下面那行小字,没删,降级了)。
+    2. **AI 助手不再直奔电脑**。它现在打开 [hub_hands] 那一层,那一层列的是
+       `HandRegistry.all()` —— **房间里摆什么,由她能做什么决定**,不是在这儿写死。
+       今天只有电脑和手机自己;以后加了外设,这一层自己会长。
+    3. 两台面板都**可以滚**了。以前不能 —— 而内容是**真的超了**,不是"也许":
+       本机 1080×2374 / density 3.0,于是横屏那一格高 270dp、竖屏 411dp,
+       而 5 张卡那套内容量出来约 526dp。**两个方向都装不下**,多出来的卡片
+       会被压扁/切掉(LinearLayout 把剩余高度按 AT_MOST 分给 wrap_content 的孩子)。
+       二级那份列表长度是**可变**的(以后每多一只外设多一行),不滚的话
+       「装到第 4 只就看不见了」—— 而它不报错,只是点不到。
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/hub_scrim"
     android:layout_width="match_parent"
@@ -32,12 +67,11 @@
             android:layout_weight="11" />
 
         <!-- 白玻璃悬浮卡:卡片内部点空白处不收起(clickable=true 吃掉),按钮仍可点 -->
-        <LinearLayout
+        <FrameLayout
             android:id="@+id/hub_panel"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="9"
-            android:orientation="vertical"
             android:background="@drawable/ov_hub_glass"
             android:clipToOutline="true"
             android:clickable="true"
@@ -46,74 +80,672 @@
             android:paddingTop="20dp"
             android:paddingBottom="18dp">
 
-            <!-- ===== 标题栏 ===== -->
+            <!-- ================= 一级:终端 ================= -->
             <LinearLayout
+                android:id="@+id/hub_main"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="中转站"
-                    android:textColor="#E4263238"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <ImageButton
-                    android:id="@+id/hub_close"
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:padding="7dp"
-                    android:scaleType="fitCenter"
-                    android:background="@drawable/ov_icon_btn_dark"
-                    android:src="@drawable/ic_chev"
-                    android:tint="#FF2B3445"
-                    android:tintMode="src_in"
-                    android:contentDescription="收起中转站" />
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="14dp"
-                android:background="#1A000000" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="常用功能"
-                android:textColor="#FF263238"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <!-- ===== 功能卡片(两个大卡片,无副标题小字) ===== -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_height="match_parent"
                 android:orientation="vertical">
 
-                <!-- 文件传输 -->
+                <!-- ===== 标题栏 ===== -->
                 <LinearLayout
-                    android:id="@+id/hub_card_file"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <!-- ★ 2026-10-04 晚用户:一级页面的标题从「中转站」改成「终端」。
+                         原话:「书签的一级页面的中转站三个字,改成终端设置这四个字」
+                         → 紧接着更正:「不对,改成终端,没有设置两个字」。
+                         ⚠️ 这里改的是**标题**,底下那几张卡片里凡是写「中转站」的
+                         (文件面板自己的名字)没动 —— 他说的是这一页的门牌。 -->
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="终端"
+                        android:textColor="#E4263238"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <ImageButton
+                        android:id="@+id/hub_close"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="收起中转站" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="14dp"
+                    android:background="#1A000000" />
+
+                <!-- ★ 可滚:卡片/开关/脚注都在这条滚动带里,标题栏留在上面不动 -->
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="2dp"
+                    android:clipToPadding="false"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:text="常用功能"
+                            android:textColor="#FF263238"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="vertical">
+
+                            <!-- ① 回到房间(原「快捷启动」;2026-10-04 用户原话
+                                 「就是把快捷启动改成回到房间就行了」)
+                                 ★ id 保持 hub_card_quick 不改:改它要同时动布局和
+                                   StationOverlay 的 findViewById,换来的只是名字好看
+                                   一点,不值那个漏改的风险。 -->
+                            <LinearLayout
+                                android:id="@+id/hub_card_quick"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/ov_card_bg"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="42dp"
+                                    android:layout_height="42dp"
+                                    android:padding="10dp"
+                                    android:src="@drawable/ic_quick"
+                                    android:tint="#FFE05B8E"
+                                    android:tintMode="src_in"
+                                    android:background="@drawable/hub_icon_circle" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="13dp"
+                                    android:text="回到房间"
+                                    android:textColor="#E4263238"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_chev"
+                                    android:tint="#66000000"
+                                    android:tintMode="src_in" />
+                            </LinearLayout>
+
+                            <!-- ② AI 助手 —— ★ 它现在开的是**二级面板**,不是电脑页面。
+                                 那一步(选外设)见 hub_hands。 -->
+                            <LinearLayout
+                                android:id="@+id/hub_card_ai"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/ov_card_bg"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="42dp"
+                                    android:layout_height="42dp"
+                                    android:padding="10dp"
+                                    android:src="@drawable/ic_ai"
+                                    android:tint="#FF8E5BEF"
+                                    android:tintMode="src_in"
+                                    android:background="@drawable/hub_icon_circle" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="13dp"
+                                    android:text="AI 助手"
+                                    android:textColor="#E4263238"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_chev"
+                                    android:tint="#66000000"
+                                    android:tintMode="src_in" />
+                            </LinearLayout>
+
+                            <!-- ③ 文件传输助手 -->
+                            <LinearLayout
+                                android:id="@+id/hub_card_file"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical"
+                                android:background="@drawable/ov_card_bg"
+                                android:padding="12dp">
+
+                                <ImageView
+                                    android:layout_width="42dp"
+                                    android:layout_height="42dp"
+                                    android:padding="10dp"
+                                    android:src="@drawable/ic_swap"
+                                    android:tint="#FF5B8DEF"
+                                    android:tintMode="src_in"
+                                    android:background="@drawable/hub_icon_circle" />
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:layout_marginStart="13dp"
+                                    android:text="文件传输助手"
+                                    android:textColor="#E4263238"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:layout_width="16dp"
+                                    android:layout_height="16dp"
+                                    android:src="@drawable/ic_chev"
+                                    android:tint="#66000000"
+                                    android:tintMode="src_in" />
+                            </LinearLayout>
+
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:layout_marginTop="18dp"
+                            android:background="#1A000000" />
+
+                        <!-- ★ 「她的悬浮窗」被**降级**留在这儿,没有跟着另外两张卡一起删。
+                             用户点名要留的是一张**去处的清单**,而这一条是个开关,不是去处。
+                             删了它 = 屏幕上再没有任何地方能把她放出来([ConMarnBubble.setEnabled]
+                             全项目只有这一处调用)。少一张卡是小事,功能没了是另一回事;
+                             所以他嫌它碍眼时删一行就行,反过来不行。 -->
+                        <LinearLayout
+                            android:id="@+id/hub_card_her_float"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingTop="6dp"
+                            android:paddingBottom="6dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="她的悬浮窗"
+                                android:textColor="#CC263238"
+                                android:textSize="13sp" />
+
+                            <TextView
+                                android:id="@+id/hub_her_float_state"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="关"
+                                android:textColor="#8A263238"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="收起:点卡片以外任意位置"
+                            android:textColor="#8A263238"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+                </ScrollView>
+            </LinearLayout>
+
+            <!-- ================= 二级:AI 助手(选外设) ================= -->
+            <!-- ★ 它是**同一扇窗里的另一层**,不是新窗口。理由:窗口那套东西
+                 (贴边、形状自适应、NOT_TOUCHABLE 收起态、屏幕旋转重贴)在
+                 [StationOverlay] 里已经有一份了,再开一扇就要再维护一份,
+                 而且两份的显隐状态会开始互相打架。 -->
+            <LinearLayout
+                android:id="@+id/hub_hands"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageButton
+                        android:id="@+id/hub_hands_back"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:rotation="180"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="返回中转站" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
+                        android:text="AI 助手"
+                        android:textColor="#E4263238"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <ImageButton
+                        android:id="@+id/hub_hands_close"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="收起中转站" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="14dp"
+                    android:background="#1A000000" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="选一个外设,她直接控制它"
+                    android:textColor="#8A263238"
+                    android:textSize="12sp" />
+
+                <!-- ★ 这一条由 StationOverlay 按 HandRegistry.all() 现填。
+                     布局里**一张手卡都不写死** —— 写死就又是「UI 一份清单、
+                     注册表一份清单」,而这个项目已经为「同一张表抄三遍」
+                     付过一次账了(见 HandModel 那段长长的注释)。 -->
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="4dp"
+                    android:clipToPadding="false"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/hub_hands_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp" />
+                </ScrollView>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="以后接的外设,都会出现在这里"
+                    android:textColor="#8A263238"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- ================= 三级:电脑 ================= -->
+            <!-- ★★ 2026-10-05 用户原话:
+                   「等一下把扫描和断开连接放到外设电脑的五级面板中,第一是终端,
+                     第二是 AI 助手,第三是电脑,第四是哪一台电脑,第五是扫描+断开连接」
+                 所以这一页是**电脑这只手自己的门牌**:她替你动这台电脑。
+                 「用哪一台」是下一页的事 —— 这两件事以前挤在同一层,看起来像一句话,
+                 其实是两个问题。
+                 ★ 原来「AI 助手 → 电脑」是**一步直达**命令输入框(见 [openPcPage] 的历史),
+                   现在中间多了这一层,是**他点名要的**。别觉得麻烦又合回去。 -->
+            <LinearLayout
+                android:id="@+id/hub_pc"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageButton
+                        android:id="@+id/hub_pc_back"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:rotation="180"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="返回 AI 助手" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
+                        android:text="电脑"
+                        android:textColor="#E4263238"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <ImageButton
+                        android:id="@+id/hub_pc_close"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="收起" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="14dp"
+                    android:background="#1A000000" />
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="2dp"
+                    android:clipToPadding="false"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:text="她替你动这台电脑 —— 鼠标、键盘、窗口"
+                            android:textColor="#8A263238"
+                            android:textSize="12sp" />
+
+                        <LinearLayout
+                            android:id="@+id/hub_card_pc_talk"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/ov_card_bg"
+                            android:padding="12dp">
+
+                            <ImageView
+                                android:layout_width="42dp"
+                                android:layout_height="42dp"
+                                android:padding="10dp"
+                                android:src="@drawable/ic_ai"
+                                android:tint="#FF8E5BEF"
+                                android:tintMode="src_in"
+                                android:background="@drawable/hub_icon_circle" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="13dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="跟她说要做什么"
+                                    android:textColor="#E4263238"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="打开命令输入框"
+                                    android:textColor="#8A263238"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:src="@drawable/ic_chev"
+                                android:tint="#66000000"
+                                android:tintMode="src_in" />
+                        </LinearLayout>
+
+                        <!-- ★ 「哪一台电脑」的答案**直接写在副标题上**(由 StationOverlay 现填)——
+                             要再点进去才知道用的是哪一台的话,这一页就没回答问题。
+                             ⚠️ 别再往这副标题上塞「会 N 件事」:用户 2026-10-04 点名嫌过
+                               (「啥会 12 件事…能不能删掉,感觉影响美观」)。 -->
+                        <LinearLayout
+                            android:id="@+id/hub_card_pc_pick"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/ov_card_bg"
+                            android:padding="12dp">
+
+                            <ImageView
+                                android:layout_width="42dp"
+                                android:layout_height="42dp"
+                                android:padding="10dp"
+                                android:src="@drawable/ic_hand_pc"
+                                android:tint="#FF5B8DEF"
+                                android:tintMode="src_in"
+                                android:background="@drawable/hub_icon_circle" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="13dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="哪一台电脑"
+                                    android:textColor="#E4263238"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/hub_pc_pick_sub"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text=""
+                                    android:textColor="#8A263238"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:src="@drawable/ic_chev"
+                                android:tint="#66000000"
+                                android:tintMode="src_in" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </ScrollView>
+            </LinearLayout>
+
+            <!-- ================= 四级:哪一台电脑 ================= -->
+            <!-- ★ 这一页**只回答「是哪一台」**,不给「换一台」的按钮。
+                 理由不是懒:换一台 = 连一台,而连接要跑权限回调、要弹配对码、
+                 要复位媒体流 —— 那三样全在 MainActivity 上(和 [goScan] 那段注释
+                 是同一个理由)。在这一页画一个假的「选它」按钮,点了没反应,
+                 比不给按钮糟得多。**真要换,走下一层的扫描。** -->
+            <LinearLayout
+                android:id="@+id/hub_pick"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageButton
+                        android:id="@+id/hub_pick_back"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:rotation="180"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="返回电脑" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
+                        android:text="哪一台电脑"
+                        android:textColor="#E4263238"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <ImageButton
+                        android:id="@+id/hub_pick_close"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="收起" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="10dp"
+                    android:background="#1A000000" />
+
+                <!-- ★★ 2026-10-05 用户原话:
+                       「终端的哪台机器那能滑动的位置太小了,看看哪里能把字删了腾出点空位置」
+
+                     ★ 这一层**没有 ScrollView 之外的东西可删**,所以能腾的地方只有两处,
+                       两处都删了(一共让出约 46dp 给下面那块能滑的区域):
+                         ① 这里原来有一句 12sp 的说明「她说「电脑」的时候,指的是这一台」;
+                         ② 底下那张「扫描 / 断开连接」卡片的副标题。
+                       ★ 删 ① 的代价是**零**:标题就是「哪一台电脑」,而列表里每一行
+                         自己写着「上次连的那一台」「她记得的电脑」—— 那句说明是在替
+                         一个已经答完的问题再问一遍。
+                       ⚠️ 但**别顺手把 ScrollView 的 weight 改小、或给列表加固定高** ——
+                         那会把这个 bug 原样种回来,而且症状更难认(内容被切掉一截,
+                         看起来像「只有一台电脑」)。 -->
+
+                <!-- ★ 由 StationOverlay 现填(照 hub_hands_list 的样子)。
+                     现填的理由一样:连上/断开了,这一页的答案就该变。 -->
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="6dp"
+                    android:clipToPadding="false"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/hub_pick_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="6dp" />
+                </ScrollView>
+
+                <!-- ★ 通到第五层的唯一一扇门。**单行版**(2026-10-05):
+                     副标题「换一台,或者把现在这台放掉」删掉了 —— 标题自己已经说清楚
+                     「扫描 / 断开连接」,而右边那颗箭头就是「下面还有东西」的信号。
+                     ⚠️ 原来那条注释说副标题「是唯一能让人知道下面还有东西的提示」——
+                       那句在**只剩单行**之后不成立了:箭头 + 卡片本身的可点样子就够。 -->
+                <LinearLayout
+                    android:id="@+id/hub_card_pick_conn"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
                     android:background="@drawable/ov_card_bg"
-                    android:padding="12dp">
+                    android:padding="10dp">
 
                     <ImageView
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:padding="10dp"
-                        android:src="@drawable/ic_swap"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:padding="8dp"
+                        android:src="@drawable/ic_scan"
                         android:tint="#FF5B8DEF"
                         android:tintMode="src_in"
                         android:background="@drawable/hub_icon_circle" />
@@ -122,48 +754,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="13dp"
-                        android:text="文件传输"
+                        android:layout_marginStart="12dp"
+                        android:text="扫描 / 断开连接"
                         android:textColor="#E4263238"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <ImageView
-                        android:layout_width="16dp"
-                        android:layout_height="16dp"
-                        android:src="@drawable/ic_chev"
-                        android:tint="#66000000"
-                        android:tintMode="src_in" />
-                </LinearLayout>
-
-                <!-- 快捷启动 -->
-                <LinearLayout
-                    android:id="@+id/hub_card_quick"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:background="@drawable/ov_card_bg"
-                    android:padding="12dp">
-
-                    <ImageView
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:padding="10dp"
-                        android:src="@drawable/ic_quick"
-                        android:tint="#FFEF8A3C"
-                        android:tintMode="src_in"
-                        android:background="@drawable/hub_icon_circle" />
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:layout_marginStart="13dp"
-                        android:text="快捷启动"
-                        android:textColor="#E4263238"
-                        android:textSize="16sp"
+                        android:textSize="15sp"
                         android:textStyle="bold" />
 
                     <ImageView
@@ -175,20 +769,195 @@
                 </LinearLayout>
             </LinearLayout>
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_marginTop="20dp"
-                android:background="#1A000000" />
+            <!-- ================= 五级:扫描 / 断开连接 ================= -->
+            <!-- ★★ 这两张卡**原本在一级**(「终端」那一页的「电脑连接」组里)。
+                 2026-10-05 用户点名把它们沉到最底一层。
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="收起:点卡片以外任意位置"
-                android:textColor="#8A263238"
-                android:textSize="11sp" />
-        </LinearLayout>
+                 ⚠️ 代价要写在这儿,免得下一个人以为它俩很好找:**扫描现在要点四下**
+                   (书签条 → AI 助手 → 电脑 → 哪一台电脑 → 扫描)。这是**他要的** ——
+                   原话把顺序念得很清楚。别「顺手」把它提上去。
+                 ⚠️ 2026-10-05:有人(用户)嫌 L4 能滑的地方太小,把 L4 的说明文字和
+                   「扫描 / 断开连接」那张卡的副标题都删了。**别再把字加回来。** -->
+            <LinearLayout
+                android:id="@+id/hub_conn"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <ImageButton
+                        android:id="@+id/hub_conn_back"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:rotation="180"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="返回哪一台电脑" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
+                        android:text="扫描 / 断开连接"
+                        android:textColor="#E4263238"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <ImageButton
+                        android:id="@+id/hub_conn_close"
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:padding="7dp"
+                        android:scaleType="fitCenter"
+                        android:background="@drawable/ov_icon_btn_dark"
+                        android:src="@drawable/ic_chev"
+                        android:tint="#FF2B3445"
+                        android:tintMode="src_in"
+                        android:contentDescription="收起" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="14dp"
+                    android:background="#1A000000" />
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:layout_marginTop="2dp"
+                    android:clipToPadding="false"
+                    android:fadeScrollbars="true"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <!-- ★ 为什么不给这些卡做「置灰」态:断开连接在没连的时候点会
+                             toast「当前未连接」([MainActivity.doDisconnect] 第一行就是它)。
+                             做置灰要多一个每次开面板都刷新的状态位,而这张卡平时
+                             并不在屏幕上 —— 不值。 -->
+                        <LinearLayout
+                            android:id="@+id/hub_card_scan"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="14dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/ov_card_bg"
+                            android:padding="12dp">
+
+                            <ImageView
+                                android:layout_width="42dp"
+                                android:layout_height="42dp"
+                                android:padding="10dp"
+                                android:src="@drawable/ic_scan"
+                                android:tint="#FF5B8DEF"
+                                android:tintMode="src_in"
+                                android:background="@drawable/hub_icon_circle" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="13dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="扫描"
+                                    android:textColor="#E4263238"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="找局域网里开着电脑端的机器"
+                                    android:textColor="#8A263238"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:src="@drawable/ic_chev"
+                                android:tint="#66000000"
+                                android:tintMode="src_in" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/hub_card_disconnect"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/ov_card_bg"
+                            android:padding="12dp">
+
+                            <ImageView
+                                android:layout_width="42dp"
+                                android:layout_height="42dp"
+                                android:padding="10dp"
+                                android:src="@drawable/ic_unlink"
+                                android:tint="#FFE05B8E"
+                                android:tintMode="src_in"
+                                android:background="@drawable/hub_icon_circle" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="13dp"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="断开连接"
+                                    android:textColor="#E4263238"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="她照样听得见你 —— 只是动不了手了"
+                                    android:textColor="#8A263238"
+                                    android:textSize="12sp" />
+                            </LinearLayout>
+
+                            <ImageView
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:src="@drawable/ic_chev"
+                                android:tint="#66000000"
+                                android:tintMode="src_in" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </ScrollView>
+            </LinearLayout>
+        </FrameLayout>
     </LinearLayout>
 
     <!-- 底部收起区(卡片以下;id 供竖屏自适应) -->

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>光核 · 环 · 光束 v2（效果图）</title>
+<style>
+  html, body { margin: 0; background: #05080F; overflow: hidden; }
+  #shot { width: 1200px; height: 560px; display: flex; flex-direction: column;
+          font: 13px/1.55 "Noto Sans SC", "PingFang SC", system-ui, sans-serif; color: #E6EFFA; }
+  #hdr { height: 34px; display: flex; align-items: center; padding: 0 16px;
+         font: 10px ui-monospace, Menlo, Consolas, monospace; color: #94A7C6;
+         border-bottom: 1px solid rgba(226,238,255,0.075); }
+  #hdr .r { margin-left: auto; color: #5B6C8A; }
+  #panes { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 760px 9px 431px; }
+  #stage { position: relative; min-width: 0; }
+  #cv { display: block; width: 100%; height: 100%; }
+  #grip { background: rgba(226,238,255,0.05); }
+  #side { min-width: 0; padding: 10px 12px 0; overflow: hidden; }
+  #side .t { font: 9px ui-monospace, Menlo, Consolas, monospace; color: #5B6C8A; letter-spacing: .08em; margin: 0 0 6px; }
+  .row { display: flex; gap: 8px; font: 10px/1.7 ui-monospace, Menlo, Consolas, monospace;
+         color: #94A7C6; white-space: nowrap; overflow: hidden; }
+  .row b { color: #7EE2FF; font-weight: 400; }
+  .row .v { color: #E6EFFA; overflow: hidden; text-overflow: ellipsis; }
+  .row.err b { color: #FF6B81; }
+  .card { border: 1px solid rgba(226,238,255,0.075); border-radius: 5px; padding: 7px 9px;
+          margin-bottom: 6px; background: rgba(9,13,20,0.5); }
+  .card .hd { display: flex; font: 9px ui-monospace, Menlo, Consolas, monospace; color: #5B6C8A; }
+  .card .hd span:last-child { margin-left: auto; }
+  .card .nm { font-size: 11px; margin: 2px 0 3px; }
+  .bar { height: 3px; border-radius: 2px; background: rgba(226,238,255,0.08); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #489EFF; }
+  #hud { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: flex;
+         align-items: center; background: rgba(5,8,15,0.92); border-top: 1px solid rgba(226,238,255,0.075); }
+  #hud .c { flex: 1; text-align: center; border-right: 1px solid rgba(226,238,255,0.06); }
+  #hud .c:last-child { border-right: 0; }
+  #hud b { display: block; font: 20px ui-monospace, Menlo, Consolas, monospace; font-weight: 400; }
+  #hud i { font: 10px ui-monospace, Menlo, Consolas, monospace; color: #5B6C8A; font-style: normal; }
+</style>
+</head>
+<body>
+<div id="shot">
+  <div id="hdr"><span id="h1">AGENT OPS / DISPATCH CENTER</span><span class="r">OPERATION — 09:41</span></div>
+  <div id="panes">
+    <div id="stage"><canvas id="cv"></canvas>
+      <div id="hud">
+        <div class="c"><b>12</b><i>派活</i></div><div class="c"><b>11</b><i>回来</i></div>
+        <div class="c"><b style="color:#FF6B81">1</b><i>失败</i></div>
+        <div class="c"><b style="color:#9FF5CE">0</b><i>在跑</i></div>
+        <div class="c"><b style="color:#FFC478">61.4k</b><i>token</i></div>
+      </div>
+    </div>
+    <div id="grip"></div>
+    <div id="side">
+      <p class="t">各岗位 · 按需展开</p>
+      <div class="card"><div class="hd"><span>VX-01</span><span>3 派 · 全回</span></div><div class="nm">编辑</div><div class="bar"><i style="width:76%"></i></div></div>
+      <div class="card"><div class="hd"><span>VX-02</span><span>4 派 · 全回</span></div><div class="nm">审稿人</div><div class="bar"><i style="width:92%"></i></div></div>
+      <div class="card"><div class="hd"><span>VX-03</span><span>2 派 · 1 失败</span></div><div class="nm">估算师</div><div class="bar"><i style="width:40%;background:#FF6B81"></i></div></div>
+      <div class="card"><div class="hd"><span>VX-04</span><span>3 派 · 全回</span></div><div class="nm">检索员</div><div class="bar"><i style="width:64%"></i></div></div>
+      <p class="t" style="margin-top:12px">流水账 · 从上往下</p>
+      <div class="row"><b>中枢</b><span class="v">分工 4 份：编辑|改短；审稿人|挑毛病…</span></div>
+      <div class="row"><b>VX-01</b><span class="v">回来 32 字 · 8.4s · +12.8k</span></div>
+      <div class="row"><b>VX-02</b><span class="v">回来 21 字 · 9.1s · +9.9k</span></div>
+      <div class="row err"><b>VX-03</b><span class="v">失败 · 工具调用超时</span></div>
+      <div class="row"><b>中枢</b><span class="v">对账：2 条相同点、1 条分歧</span></div>
+      <div class="row"><b>VX-04</b><span class="v">回来 27 字 · 7.3s · +8.7k</span></div>
+    </div>
+  </div>
+</div>
+<script>
+/* ?v=tilt 倾斜圆盘（有纵深）/ ?v=flat 正面圆环（最亮）—— 同一份数据，两种摆法。
+
+   形态参考 Ryder191/haloflux：中心光核、一圈刻度、环外多层光束、强烈辉光。
+   代码自己写（它那份是 PolyForm Noncommercial，源码与观感都不搬）。
+
+   ★ 数据规矩没松：一根光束 = 一次真派活；环上的亮块 = 一次真派活；
+     没有事件时只剩光核和刻度环，不自己长东西。 */
+
+var V = (location.search.match(/v=(\w+)/) || [])[1] || "tilt";
+var TILT = V === "tilt";
+
+var cv = document.getElementById("cv");
+var g = cv.getContext("2d");
+var W = 760, H = 496, DPR = 2;
+cv.width = W * DPR; cv.height = H * DPR;
+g.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+document.getElementById("h1").textContent =
+  "AGENT OPS / DISPATCH CENTER — " + (TILT ? "DISC" : "HALO");
+
+var FG = "#E6EFFA", DIM = "#94A7C6", FAINT = "#5B6C8A";
+var RED = "#FF6B81", WARM = "#FFC478", MINT = "#9FF5CE";
+var FIELD_H = H - 64;
+
+var roles = [
+  { name: "编辑",  code: "VX-01" }, { name: "审稿人", code: "VX-02" },
+  { name: "估算师", code: "VX-03" }, { name: "检索员", code: "VX-04" }
+];
+var asks = [
+  { r: 0, text: "改短一点，书面一些", st: "done", tok: 12840 },
+  { r: 0, text: "把三审意见并进正文", st: "done", tok: 7120 },
+  { r: 0, text: "把结论提到第一段", st: "done", tok: 4820 },
+  { r: 1, text: "挑毛病，说哪里站不住", st: "done", tok: 9860 },
+  { r: 1, text: "二审：看结论有没有跳步", st: "done", tok: 5240 },
+  { r: 1, text: "三审：只挑事实错误", st: "done", tok: 3870 },
+  { r: 1, text: "四审：只看数字有没有错", st: "done", tok: 3390 },
+  { r: 2, text: "粗算这一版要多久改完", st: "done", tok: 11200 },
+  { r: 2, text: "按二审意见重估工期", st: "err", tok: 2110 },
+  { r: 3, text: "把这一版和上一版逐条对齐", st: "done", tok: 15620 },
+  { r: 3, text: "把引用来源找齐", st: "done", tok: 8730 },
+  { r: 3, text: "找一下这位作者的其他文章", st: "done", tok: 10930 }
+];
+
+var CX = W * 0.5, CY = FIELD_H * 0.50;
+var R  = Math.min(W * 0.285, FIELD_H * 0.40);
+var RX = R * (TILT ? 1.34 : 1.0);
+var RY = R * (TILT ? 0.46 : 1.0);
+
+function rr(x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function ringPt(a) { return { x: CX + Math.cos(a) * RX, y: CY + Math.sin(a) * RY }; }
+
+/* ── 底 ── */
+g.fillStyle = "#07080D"; g.fillRect(0, 0, W, H);
+var bg = g.createRadialGradient(CX, CY, 0, CX, CY, Math.max(W, FIELD_H) * 0.75);
+bg.addColorStop(0, "rgba(40,96,150,0.20)");
+bg.addColorStop(0.5, "rgba(18,34,58,0.10)");
+bg.addColorStop(1, "rgba(0,0,0,0)");
+g.fillStyle = bg; g.fillRect(0, 0, W, FIELD_H);
+
+g.strokeStyle = "rgba(72,158,255,0.030)"; g.lineWidth = 1;
+for (var gx = 0; gx < W; gx += 26) { g.beginPath(); g.moveTo(gx + .5, 0); g.lineTo(gx + .5, FIELD_H); g.stroke(); }
+for (var gy = 0; gy < FIELD_H; gy += 26) { g.beginPath(); g.moveTo(0, gy + .5); g.lineTo(W, gy + .5); g.stroke(); }
+
+/* ── 星尘：背景噪点，位置由 seed 定死 ── */
+function rnd(n) { var x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+for (var s0 = 0; s0 < 150; s0++) {
+  var sx = rnd(s0) * W, sy = rnd(s0 + 99) * FIELD_H;
+  var sa = 0.06 + rnd(s0 + 7) * 0.16;
+  g.fillStyle = "rgba(190,225,255," + sa + ")";
+  g.fillRect(sx, sy, 1, 1);
+}
+
+/* ── 环：三层刻度 ──────────────────────────────────────
+   ★ 刻度不声称事实：它只说「这里是一个量程」，长短均匀、不随事件变。 */
+function ringPath(rx, ry) {
+  g.beginPath(); g.ellipse(CX, CY, rx, ry, 0, 0, Math.PI * 2);
+}
+for (var k = 0; k < 3; k++) {
+  var fx = 1 + k * 0.075, fy = 1 + k * 0.075;
+  ringPath(RX * fx, RY * fy);
+  g.strokeStyle = "rgba(126,226,255," + (0.16 - k * 0.045) + ")";
+  g.lineWidth = k === 0 ? 1.2 : 0.7;
+  g.stroke();
+}
+// 一圈长短交替的刻度
+for (var tk = 0; tk < 96; tk++) {
+  var ta = tk * Math.PI * 2 / 96;
+  var p0 = ringPt(ta);
+  var lv = (tk % 8 === 0 ? 9 : (tk % 4 === 0 ? 5 : 2.5));
+  var nx = Math.cos(ta), ny = Math.sin(ta);
+  var p1 = { x: p0.x + nx * lv, y: p0.y + ny * lv };
+  g.beginPath(); g.moveTo(p0.x, p0.y); g.lineTo(p1.x, p1.y);
+  g.strokeStyle = "rgba(126,226,255," + (tk % 8 === 0 ? 0.34 : 0.15) + ")";
+  g.lineWidth = tk % 8 === 0 ? 1.1 : 0.7; g.stroke();
+}
+
+/* ── 岗位在环上的角度 ── */
+var slot = [];
+for (var i = 0; i < roles.length; i++) {
+  slot.push(-Math.PI / 2 + i * Math.PI * 2 / roles.length + (TILT ? 0.22 : 0));
+}
+
+/* ── 光束：一根 = 一次真派活 ─────────────────────────────
+   每根再拆成 3 股细丝，长度略不同 —— 像一束光，而不是一根线。
+   根部都咬在环上同一个点，所以看得出它属于哪一次派活。 */
+function beamBundle(a, seed, st, pulse) {
+  var root = ringPt(a);
+  var dirx = Math.cos(a), diry = Math.sin(a) * (TILT ? 0.46 : 1);
+  var dl = Math.hypot(dirx, diry) || 1;
+  dirx /= dl; diry /= dl;
+
+  var baseLen = R * (0.55 + (seed % 43) / 100) * (TILT ? 1.7 : 1.5);
+  var core = st === "err" ? "255,107,129" : (st === "run" ? "126,226,255" : "120,190,255");
+  var HAIR = TILT ? 5 : 3;
+
+  for (var hI = 0; hI < HAIR; hI++) {
+    var off = (hI - (HAIR - 1) / 2);
+    var spread = off * 0.022;
+    var len = baseLen * (1 - Math.abs(off) * 0.13);
+    var ca = Math.cos(a + spread), sa = Math.sin(a + spread) * (TILT ? 0.46 : 1);
+    var cl = Math.hypot(ca, sa) || 1;
+    var ex = root.x + (ca / cl) * len, ey = root.y + (sa / cl) * len;
+
+    // 尾巴带一点弯
+    var bend = Math.sin(seed * 1.7 + hI) * len * 0.09;
+    var mx = (root.x + ex) / 2 - diry * bend, my = (root.y + ey) / 2 + dirx * bend;
+
+    var grad = g.createLinearGradient(root.x, root.y, ex, ey);
+    grad.addColorStop(0, "rgba(" + core + ",0.85)");
+    grad.addColorStop(0.35, "rgba(" + core + ",0.34)");
+    grad.addColorStop(1, "rgba(" + core + ",0)");
+
+    g.beginPath(); g.moveTo(root.x, root.y); g.quadraticCurveTo(mx, my, ex, ey);
+    g.strokeStyle = grad;
+    g.lineWidth = hI === (HAIR - 1) / 2 ? 1.3 : 0.7;
+    g.globalAlpha = st === "err" ? 0.65 : 0.9;
+    if (st === "err") g.setLineDash([2, 4]);
+    g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+  }
+
+  if (pulse) {
+    var u = pulse.u, iu = 1 - u;
+    var px = root.x + dirx * baseLen * u, py = root.y + diry * baseLen * u;
+    var pg = g.createRadialGradient(px, py, 0, px, py, 12);
+    pg.addColorStop(0, "rgba(200,250,255,0.75)");
+    pg.addColorStop(1, "rgba(126,226,255,0)");
+    g.fillStyle = pg; g.beginPath(); g.arc(px, py, 12, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#EAFEFF"; g.beginPath(); g.arc(px, py, 2.2, 0, Math.PI * 2); g.fill();
+  }
+}
+
+for (var ai = 0; ai < asks.length; ai++) {
+  var a0 = asks[ai];
+  var jitter = ((ai % 5) - 2) * 0.018;
+  beamBundle(slot[a0.r] + jitter, 17 + ai * 11, a0.st, a0.st === "run" ? { u: 0.5 } : null);
+}
+
+/* ── 光核 ─────────────────────────────────────────────── */
+var pulseR = 1 + 0.03 * Math.sin(1.7 * 2.1);
+
+// 大晕
+var hg = g.createRadialGradient(CX, CY, 0, CX, CY, 96);
+hg.addColorStop(0, "rgba(170,255,235,0.34)");
+hg.addColorStop(0.18, "rgba(126,226,255,0.20)");
+hg.addColorStop(0.5, "rgba(80,150,255,0.07)");
+hg.addColorStop(1, "rgba(80,150,255,0)");
+g.fillStyle = hg; g.beginPath(); g.arc(CX, CY, 96, 0, Math.PI * 2); g.fill();
+
+// 编织的丝
+for (var v = 0; v < 40; v++) {
+  var va = v * Math.PI * 2 / 40 + 0.06;
+  var rin = 9 + (v % 4) * 1.6;
+  var rout = 30 + (v % 9) * 3.2;
+  var sw = 0.10 + (v % 6) * 0.02;
+  g.beginPath();
+  g.moveTo(CX + Math.cos(va) * rin, CY + Math.sin(va) * rin);
+  g.quadraticCurveTo(
+    CX + Math.cos(va + 0.22) * (rin + rout) * 0.55, CY + Math.sin(va + 0.22) * (rin + rout) * 0.55,
+    CX + Math.cos(va + sw) * rout, CY + Math.sin(va + sw) * rout);
+  g.strokeStyle = "rgba(170,235,255," + (0.09 + (v % 5) * 0.045) + ")";
+  g.lineWidth = 0.7; g.stroke();
+}
+
+// 三圈转速不同的虚线（像在自转）
+for (var c = 0; c < 3; c++) {
+  var rc = (17 + c * 7) * pulseR;
+  g.beginPath();
+  g.strokeStyle = "rgba(160,235,255," + (0.34 - c * 0.08) + ")";
+  g.lineWidth = c === 0 ? 1.4 : 0.8;
+  g.setLineDash([3 + c * 2, 5 + c * 3]);
+  g.lineDashOffset = (9 - c * 2) * (c % 2 ? -1 : 1) * 1.7;
+  g.arc(CX, CY, rc, 0, Math.PI * 2); g.stroke();
+}
+g.setLineDash([]);
+
+// 核
+var cg = g.createRadialGradient(CX - 4, CY - 5, 0, CX, CY, 15);
+cg.addColorStop(0, "#FFFFFF");
+cg.addColorStop(0.35, "#DFFFF6");
+cg.addColorStop(0.7, "#8FF0D4");
+cg.addColorStop(1, "rgba(126,226,255,0)");
+g.fillStyle = cg; g.beginPath(); g.arc(CX, CY, 15, 0, Math.PI * 2); g.fill();
+g.fillStyle = "#FFFFFF"; g.beginPath(); g.arc(CX, CY, 3.2, 0, Math.PI * 2); g.fill();
+
+// 横向光刺
+var fg2 = g.createLinearGradient(CX - 150, CY, CX + 150, CY);
+fg2.addColorStop(0, "rgba(160,235,255,0)");
+fg2.addColorStop(0.35, "rgba(160,235,255,0.22)");
+fg2.addColorStop(0.5, "rgba(230,255,255,0.55)");
+fg2.addColorStop(0.65, "rgba(160,235,255,0.22)");
+fg2.addColorStop(1, "rgba(160,235,255,0)");
+g.fillStyle = fg2; g.fillRect(CX - 150, CY - 0.7, 300, 1.4);
+
+/* ── 环上的亮块：一次派活一块 ── */
+g.save();
+g.globalCompositeOperation = "lighter";
+for (var bi = 0; bi < asks.length; bi++) {
+  var ba = slot[asks[bi].r] + ((bi % 5) - 2) * 0.018;
+  var bp = ringPt(ba);
+  var col = asks[bi].st === "err" ? "255,107,129" : "126,226,255";
+  var br = asks[bi].st === "err" ? 3.4 : 2.6;
+  var bgr = g.createRadialGradient(bp.x, bp.y, 0, bp.x, bp.y, br * 3.2);
+  bgr.addColorStop(0, "rgba(" + col + ",0.95)");
+  bgr.addColorStop(1, "rgba(" + col + ",0)");
+  g.fillStyle = bgr; g.beginPath(); g.arc(bp.x, bp.y, br * 3.2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#FFFFFF"; g.beginPath(); g.arc(bp.x, bp.y, br * 0.55, 0, Math.PI * 2); g.fill();
+}
+g.restore();
+
+/* ── 岗位面板 ── */
+var PW = 78, PH = 32;
+for (var q = 0; q < roles.length; q++) {
+  var ang = slot[q];
+  var rp = ringPt(ang);
+  var outward = { x: Math.cos(ang), y: Math.sin(ang) * (TILT ? 0.46 : 1) };
+  var ol = Math.hypot(outward.x, outward.y) || 1;
+  var nx = rp.x + outward.x / ol * 34, ny = rp.y + outward.y / ol * 30;
+  var bx = Math.max(4, Math.min(W - PW - 4, nx - PW / 2));
+  var by = Math.max(4, Math.min(FIELD_H - PH - 4, ny - PH / 2));
+
+  var mine = asks.filter(function (x) { return x.r === q; });
+  var failed = mine.some(function (x) { return x.st === "err"; });
+  var toks = mine.reduce(function (s, x) { return s + x.tok; }, 0);
+
+  g.beginPath();
+  g.strokeStyle = "rgba(126,226,255,0.24)"; g.lineWidth = 0.7;
+  g.moveTo(rp.x, rp.y); g.lineTo(nx, ny); g.stroke();
+
+  g.fillStyle = "rgba(8,12,19,0.90)";
+  rr(bx, by, PW, PH, 5); g.fill();
+  g.strokeStyle = failed ? "rgba(255,107,129,0.45)" : "rgba(126,226,255,0.26)";
+  g.lineWidth = 0.8; g.stroke();
+
+  g.font = "8px ui-monospace, Menlo, Consolas, monospace";
+  g.fillStyle = FAINT; g.fillText(roles[q].code, bx + 8, by + 12);
+  g.textAlign = "right"; g.fillText(mine.length + " 派", bx + PW - 8, by + 12);
+  g.textAlign = "left";
+  g.font = '12px "Noto Sans SC", system-ui, sans-serif';
+  g.fillStyle = FG; g.fillText(roles[q].name, bx + 8, by + 26);
+  g.textAlign = "right"; g.font = "8px ui-monospace, Menlo, Consolas, monospace";
+  g.fillStyle = failed ? RED : WARM;
+  g.fillText((toks / 1000).toFixed(1) + "k", bx + PW - 8, by + 26);
+  g.textAlign = "left";
+}
+
+/* ── 辉光：缩-放当模糊（真机上就这一个后处理能扛住） ── */
+var bl = document.createElement("canvas");
+bl.width = Math.max(1, W >> 2); bl.height = Math.max(1, H >> 2);
+var bgx = bl.getContext("2d");
+bgx.drawImage(cv, 0, 0, bl.width, bl.height);
+g.save();
+g.globalCompositeOperation = "lighter";
+g.globalAlpha = 0.55; g.drawImage(bl, 0, 0, W, H);
+g.globalAlpha = 0.35; g.drawImage(bl, 0, 0, W, H);
+g.restore();
+
+/* ── 暗角 + 扫描线 ── */
+var vg = g.createRadialGradient(W * 0.5, FIELD_H * 0.5, Math.min(W, FIELD_H) * 0.34,
+  W * 0.5, FIELD_H * 0.5, Math.max(W, FIELD_H) * 0.95);
+vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.66)");
+g.fillStyle = vg; g.fillRect(0, 0, W, H);
+
+g.fillStyle = "rgba(120,190,255,0.020)";
+for (var sy2 = 0; sy2 < FIELD_H; sy2 += 3) g.fillRect(0, sy2, W, 1);
+</script>
+</body>
+</html>

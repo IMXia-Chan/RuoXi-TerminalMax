@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>房间左右信息屏 —— 三种排布</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 24px 34px;
+    background: #0B0A0C; color: #F2F3F5;
+    font-family: "Noto Sans SC", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { margin: 0 0 4px; font-size: 17px; font-weight: 600; letter-spacing: .5px; }
+  .sub { margin: 0 0 26px; font-size: 12px; color: #8B8B93; }
+  .row { display: flex; gap: 44px; align-items: flex-start; }
+  .col { width: 300px; }
+  .cap { margin: 14px 0 0; font-size: 12.5px; color: #C9CAD1; line-height: 1.55; }
+  .cap b { color: #F2F3F5; font-weight: 600; }
+
+  /* ── 手机外框 ── */
+  .phone {
+    position: relative; width: 300px; height: 649px;
+    border-radius: 30px; overflow: hidden;
+    box-shadow: 0 0 0 1.5px #2A2A30, 0 14px 40px rgba(0,0,0,.65);
+  }
+  /* ── 房间底色 + 紫雾（与 her_mist.xml 同色） ── */
+  .room {
+    position: absolute; inset: 0; background: #160F13;
+  }
+  .room::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120% 62% at 50% 100%,
+      rgba(122,63,107,.42) 0%, rgba(91,47,82,.20) 46%, rgba(22,15,19,0) 78%);
+  }
+  /* 她站在中间（抽象身形，只为看出遮挡关系） */
+  .her { position: absolute; left: 50%; top: 18%; width: 150px; height: 470px;
+         transform: translateX(-50%); filter: blur(1.6px); opacity: .95; }
+  .her i { position: absolute; display: block; }
+  /* 头 */
+  .her .head { left: 50%; top: 0; width: 42px; height: 52px; margin-left: -21px;
+    border-radius: 50% 50% 46% 46%;
+    background: radial-gradient(60% 60% at 46% 38%, #FFE6EC 0%, #EFB9CB 62%, #D090A7 100%); }
+  /* 长发垂到肩下 */
+  .her .hair { left: 50%; top: 6px; width: 66px; height: 190px; margin-left: -33px;
+    border-radius: 46% 46% 30% 30% / 18% 18% 46% 46%;
+    background: linear-gradient(180deg, #6B4A5C 0%, #4A3040 60%, rgba(74,48,64,0) 100%); }
+  /* 肩 + 身体，越往下越淡 */
+  .her .body { left: 50%; top: 56px; width: 108px; height: 404px; margin-left: -54px;
+    border-radius: 50% 50% 30% 30% / 14% 14% 42% 42%;
+    background: linear-gradient(180deg, rgba(255,226,236,.72) 0%, rgba(240,186,206,.46) 46%,
+                rgba(214,150,180,.16) 82%, rgba(214,150,180,0) 100%); }
+
+  /* ── 玻璃 ── */
+  .screen {
+    position: absolute;
+    border-radius: 13px;
+    background: linear-gradient(180deg,
+      rgba(255,255,255,.26) 0%, rgba(255,255,255,.13) 55%, rgba(255,201,222,.12) 100%);
+    border: 1px solid rgba(255,255,255,.42);
+    box-shadow: 0 6px 22px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.30);
+    backdrop-filter: blur(10px) saturate(115%);
+    -webkit-backdrop-filter: blur(10px) saturate(115%);
+    padding: 9px 10px;
+    overflow: hidden;
+  }
+  .screen::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 22%;
+    background: linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,0));
+    pointer-events: none;
+  }
+  .hd {
+    position: relative; display: flex; align-items: baseline; gap: 5px;
+    margin-bottom: 6px; padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255,255,255,.16);
+  }
+  .hd .t { font-size: 11px; font-weight: 700; letter-spacing: .8px; color: #FFFFFF; }
+  .hd .m { font-size: 8.5px; color: rgba(255,255,255,.52); margin-left: auto; }
+
+  .item { position: relative; margin-bottom: 6.5px; }
+  .item:last-child { margin-bottom: 0; }
+  .item .ln1 { display: flex; align-items: baseline; gap: 4px; }
+  .item .rk {
+    font-size: 8.5px; font-weight: 700; color: rgba(255,255,255,.42);
+    font-variant-numeric: tabular-nums; flex: none; width: 10px;
+  }
+  .item .rk.hot { color: #FF7A9B; }
+  .item .tx {
+    font-size: 9.5px; line-height: 1.36; color: rgba(255,255,255,.94);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .item .mt { font-size: 8px; color: rgba(255,255,255,.45); margin-left: 14px; margin-top: 1px; }
+
+  /* 未定内容的那一格 */
+  .todo { position: relative; display: flex; flex-direction: column; align-items: center;
+          justify-content: center; height: calc(100% - 26px); color: rgba(255,255,255,.34);
+          font-size: 9.5px; letter-spacing: 1px; }
+
+  /* 收起后的那枚小标签 */
+  .tab {
+    position: absolute; width: 15px; height: 46px; border-radius: 6px;
+    background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,201,222,.10));
+    border: 1px solid rgba(255,255,255,.26);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28);
+  }
+
+  /* ── 底层那些本来就有的东西 ── */
+  .topbar {
+    position: absolute; left: 0; right: 0; top: 0; height: 34px;
+    background: linear-gradient(180deg, rgba(0,0,0,.70), rgba(0,0,0,.0));
+    display: flex; align-items: center; padding: 0 10px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #4CD07D; }
+  .gbtn {
+    position: absolute; right: 9px; top: 7px; width: 26px; height: 20px; border-radius: 6px;
+    background: #1E2126; border: 1px solid rgba(224,91,142,.40);
+    color: #F2F3F5; font-size: 10px; display: flex; align-items: center; justify-content: center;
+  }
+  .scan {
+    position: absolute; right: 41px; top: 7px; width: 20px; height: 20px; border-radius: 6px;
+    background: #1E2126; border: 1px solid rgba(224,91,142,.40);
+  }
+  .pill {
+    position: absolute; left: 14px; right: 14px; bottom: 16px; height: 34px; border-radius: 17px;
+    background: linear-gradient(180deg, rgba(255,255,255,.155), rgba(255,201,222,.075));
+    border: 1px solid rgba(255,255,255,.30);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.30); backdrop-filter: blur(10px);
+    display: flex; align-items: center; padding: 0 11px; font-size: 9.5px; color: rgba(255,255,255,.55);
+  }
+</style>
+</head>
+<body>
+
+<h1>房间里左右各挂一块信息屏 —— 三种排布</h1>
+<p class="sub">同一块玻璃、同一套字，只换位置和大小。中间那团光就是她站的地方，用来判断挡不挡。</p>
+
+<div class="row">
+
+  <!-- ═════════ 甲 ═════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="room"></div>
+      <div class="her"><i class="hair"></i><i class="body"></i><i class="head"></i></div>
+
+      <!-- 左：今日热点 -->
+      <div class="screen" style="left:9px; top:132px; width:96px; height:214px;">
+        <div class="hd"><span class="t">今日热点</span><span class="m">08:24</span></div>
+        <div class="item"><div class="ln1"><span class="rk hot">1</span><span class="tx">国常会部署新一轮设备更新与消费品以旧换新</span></div></div>
+        <div class="item"><div class="ln1"><span class="rk hot">2</span><span class="tx">台风「海鸥」今夜登陆，东南沿海停课</span></div></div>
+        <div class="item"><div class="ln1"><span class="rk">3</span><span class="tx">国产大模型开源周：三家同日放出权重</span></div></div>
+        <div class="item"><div class="ln1"><span class="rk">4</span><span class="tx">气温骤降 9℃，周末有雨</span></div></div>
+      </div>
+
+      <!-- 右：待定 -->
+      <div class="screen" style="right:9px; top:132px; width:96px; height:214px;">
+        <div class="hd"><span class="t">待定</span></div>
+        <div class="todo">右边这一格<br>还没定</div>
+      </div>
+
+      <div class="topbar"><span class="dot"></span></div>
+      <div class="scan"></div><div class="gbtn">⚙</div>
+      <div class="pill">按住说话，点一下打字</div>
+    </div>
+    <p class="cap"><b>甲 · 两块竖屏</b><br>最窄，占屏幕两侧各四分之一。她整个人露在外面，一点不挡；代价是每屏一次只放得下四条短标题。</p>
+  </div>
+
+  <!-- ═════════ 乙 ═════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="room"></div>
+      <div class="her"><i class="hair"></i><i class="body"></i><i class="head"></i></div>
+
+      <div class="screen" style="left:8px; top:56px; width:112px; height:196px;">
+        <div class="hd"><span class="t">今日热点</span><span class="m">08:24</span></div>
+        <div class="item"><div class="ln1"><span class="rk hot">1</span><span class="tx">国常会部署新一轮设备更新与消费品以旧换新</span></div><div class="mt">新华社 · 2.1 万</div></div>
+        <div class="item"><div class="ln1"><span class="rk hot">2</span><span class="tx">台风「海鸥」今夜登陆，东南沿海停课</span></div><div class="mt">央视新闻 · 1.4 万</div></div>
+        <div class="item"><div class="ln1"><span class="rk">3</span><span class="tx">国产大模型开源周：三家同日放出权重</span></div><div class="mt">机器之心 · 9,820</div></div>
+      </div>
+
+      <div class="screen" style="right:8px; top:56px; width:112px; height:196px;">
+        <div class="hd"><span class="t">待定</span></div>
+        <div class="todo">右边这一格<br>还没定</div>
+      </div>
+
+      <div class="topbar"><span class="dot"></span></div>
+      <div class="scan"></div><div class="gbtn">⚙</div>
+      <div class="pill">按住说话，点一下打字</div>
+    </div>
+    <p class="cap"><b>乙 · 两块方形屏，挂高一点</b><br>放在她头顶两侧，像墙上两块平板。每条能带一行来源，看着像正经消息；代价是更占地方，她肩膀以上会被压住一点。</p>
+  </div>
+
+  <!-- ═════════ 丙 ═════════ -->
+  <div class="col">
+    <div class="phone">
+      <div class="room"></div>
+      <div class="her"><i class="hair"></i><i class="body"></i><i class="head"></i></div>
+
+      <div class="tab" style="left:0; top:150px;"></div>
+      <div class="screen" style="left:9px; top:150px; width:118px; height:196px;">
+        <div class="hd"><span class="t">今日热点</span><span class="m">08:24</span></div>
+        <div class="item"><div class="ln1"><span class="rk hot">1</span><span class="tx">国常会部署新一轮设备更新与消费品以旧换新</span></div></div>
+        <div class="item"><div class="ln1"><span class="rk hot">2</span><span class="tx">台风「海鸥」今夜登陆，东南沿海停课</span></div></div>
+        <div class="item"><div class="ln1"><span class="rk">3</span><span class="tx">国产大模型开源周：三家同日放出权重</span></div></div>
+        <div class="item"><div class="ln1"><span class="rk">4</span><span class="tx">气温骤降 9℃，周末有雨</span></div></div>
+      </div>
+
+      <div class="tab" style="right:0; top:150px;"></div>
+      <div class="screen" style="right:9px; top:150px; width:118px; height:196px;">
+        <div class="hd"><span class="t">待定</span></div>
+        <div class="todo">右边这一格<br>还没定</div>
+      </div>
+
+      <div class="topbar"><span class="dot"></span></div>
+      <div class="scan"></div><div class="gbtn">⚙</div>
+      <div class="pill">按住说话，点一下打字</div>
+    </div>
+    <p class="cap"><b>丙 · 可收起</b><br>平时缩成贴边的一枚小标签，点一下才展开。房间回到现在这样干净；代价是多一步。</p>
+  </div>
+
+</div>
+</body>
+</html>

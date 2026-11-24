@@ -4,6 +4,9 @@
     <!-- Wi-Fi 局域网通信所需 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 16(API 36)起,访问局域网(内网 IP)必须单独申请「本地网络」权限;
+         没有它,外网照通、内网全断(连 192.168.x.x 直接超时)。低版本系统会忽略此声明。 -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <!-- 扫描电脑上的配对二维码(ZXing) + 手机当摄像头 -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -16,6 +19,25 @@
     <!-- 推摄像头/麦克风时服务升级成 camera/microphone 类型(系统当「正在录像/录音」,ColorOS 不易强停) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
+    <!-- ★★ 2026-10-04「她一直在」新增的两条 —— **先问过用户、他点头才加的**,
+         不是顺手加的(项目老规矩:加权限必须让用户知情;见 human-does-irreversible-system-ops)。
+
+         ① RECEIVE_BOOT_COMPLETED:重启后她能自己回来。
+            不做的代价是实测出来的 —— 冷装载模型要 **70 秒**(不是 12 秒,那是页缓存热着时的数),
+            每次冷开机用户都得先干等这么久。见记忆 ruoxi-her-boot。
+
+         ② FOREGROUND_SERVICE_SPECIAL_USE:让「她一直活着」有一个系统认可的形态。
+            **不能用现成的 dataSync** —— Android 15+ 给它设了「每 24 小时累计 6 小时」
+            的硬上限(到点抛 RemoteServiceException),而且它在开机广播的**禁用名单**上
+            (同名单:camera/mediaPlayback/phoneCall/mediaProjection/microphone)。
+            specialUse **不在名单上、也没有时间配额**,是唯一走得通的路。
+            代价:它需要一个理由字符串(见 HerLifeService 的 <property>),我们认。
+            见 HerLifeService 的类注释。
+
+         两条都只在本机生效:不联网、不改系统设置、不动别的应用。 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 引导用户允许忽略电池优化,绕开 ColorOS 的 Stop FGS timeout 强停 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -24,26 +46,122 @@
     <!-- 呼出面板/书签条:弹出收起时 50/30ms 短震反馈 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- ★ 指纹 / 锁屏密码二次验证（2026-11-06，见 AppGate.kt）。
+         平台 BiometricPrompt 的**必需**权限 —— 不声明的话 `canAuthenticate` 永远
+         回「验不了」，那道门会**静默失效**：开关显示开、其实一次都不问。
+         它不给任何读写能力，只让系统弹它自己的那个验证框；指纹模板在安全芯片里，
+         App 收不到任何画面或模板。 -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!-- ★ 定时任务（2026-11-07，见 TaskAlarm.kt）。「每天早上八点帮我做某件事」要准点响。
+         ★★ 这不是**安装时**弹框的运行时权限，是「闹钟和提醒」这个**特殊访问权限**：
+             Android 14 起新装的应用默认**没有**它，要去 设置 → 应用 → 特殊权限 里打开。
+             没打开时功能**照样能用**，只是排的是不精确闹钟（可能晚几分钟到十几分钟）——
+             而这件事会在回执里明说，不会让她当成准点。
+         —— 没有用 USE_EXACT_ALARM：那个是给闹钟/日历类应用的自动权限，Google Play
+            对它有政策限制；我们这套是自己给自己排活，走用户可撤销的那条路更合适。 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!-- ★ 把她记住的、有具体时间的事写进手机系统日历（2026-11-06，见 CalHand.kt）。
+         两个都是**运行时权限**：第一次写的时候系统会弹自己的那个框，他不在那一下
+         就等于没同意（我们不会拿「写失败」冒充「没同意」）。
+         只写她自己建的那些条目（描述里带一处标记），不读别人的日程内容。 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
+    <!-- ★ 蓝牙（2026-11-07，见 Ble.kt）。Android 12 起「扫描」和「连接」是两个
+         独立的运行时权限，第一次用会弹系统自己的框。
+         —— BLUETOOTH_SCAN 带 neverForLocation：我们只用信号强度排个序，
+            不拿蓝牙去推算位置；不带这个标记，系统会把它当成定位权限要，
+            在很多机型上会比「扫描」本身更难过。
+         —— Android 11 及以下没有这两个新权限，扫描要的是定位（老规矩）。 -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <!-- ★ 2026-11-07:去掉 `maxSdkVersion="30"`。
+         原来这条只给蓝牙扫描用(Android 11 起扫描才要定位),所以封在 30 是对的;
+         现在**天气也要按真实位置认城市**(见 Where.kt),再封顶就等于从 Android 11 起
+         永远拿不到位置 —— 而它的失效样子是「天气按出口 IP 算,人在上海报北京」，
+         一句错都没有。
+         ★ 声明不等于授予:真正的框在 [ConMarnActivity.ensureLocation] 里只弹一次。 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- 没有蓝牙的机器上照样能装：这只手在那里只会回「这台机器没有蓝牙」。 -->
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+
+    <!-- ★ 这不是权限 —— 不给用户弹任何框,也不多给一分能力。
+         Android 11(API 30)起,不声明这里的话**看不见别的应用**:
+         `getLaunchIntentForPackage` 对每个包都静默返回 null。
+         我们那只「打开手机上的应用」的手会表现成「手机上没装微信」——
+         一个查不出原因的空菜单(同一个坑见 open_app 的六零宽空格那轮)。
+         声明的是「能启动的应用」这个类别,不是一份包名白名单。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+
+        <!-- ★★ 2026-10-04:她「不发声」的真根因就在这一条缺失上。
+             用户原话:「她得发声啊,知道吧」。
+
+             没有这条声明时,`TextToSpeech` 的 `getDefaultEngine()` 会走
+             `getHighestRankedEngineName()` → `TtsEngines.getEngines()` →
+             `pm.queryIntentServices(new Intent(TTS_SERVICE))` —— 而 targetSdk≥30 的 App
+             **看不见没有声明过的应用**,这个查询**静默返回空列表**,
+             于是引擎名回落成 null,构造函数的回调直接给
+             `status = TextToSpeech.ERROR(-1)`。
+
+             真机原始证据(model.log,装完这一版当天):
+                 18:50:18 房间:TTS 起不来(status=-1 语言=-99)—— 她不发声
+             而这台机器**明明有一个引擎**:
+                 com.oplus.ttsaccessibilityengine  /product/app/...  enabled=true
+
+             症状的坏处在于它长得完全不像 bug:字幕正常弹、嘴型正常动、
+             开关显示「开」,就是一声不吭,而且一行报错都没有。
+
+             声明的是「能当 TTS 引擎的服务」这个**类别**,不是一份包名白名单 ——
+             换任何一台机器、任何一个引擎都适用。 -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <!-- ★ 图标换成她那个(2026-10-04)。不只是「换成她的」——
+         `ic_conmarn` 有完整的 adaptive icon(前景/背景/圆形,`mipmap-anydpi-v26/ic_conmarn.xml`,
+         底色 #E05B8E),而 `ic_launcher` 只有一个绿方块 PNG、**连 adaptive 版本都没有**。
+         所以这是纯升级,不是取舍。 -->
     <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:name=".ConMarnApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_conmarn"
+        android:roundIcon="@mipmap/ic_conmarn_round"
         android:label="@string/app_name"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Touchpad">
 
-        <!-- 开屏动画:点桌面图标先进这里,播完淡出再进 MainActivity -->
+        <!-- 开屏动画,★ 2026-10-04 起**暂时停用**:
+             原来点桌面图标先进这里,播 4.5 秒(「RuoXi」→「XChan OS」)再进 MainActivity。
+             合并成一个 App 之后有两个问题:
+               ① 那两幕大字成了唯一 App 的开场字幕,和「只有一个 App 叫 ConMarn」打架;
+               ② 更实际的:她自己的图标原来是**直接进房间、没有开屏**的,
+                  入口一旦统一到这里,就变成每次进她都要先等 4.5 秒 —— 那是退步。
+             用户说「之后再教你」怎么做开场,所以文件一行不删,SplashView 原样留着。
+             要恢复:把 intent-filter 加回来 + `exported` 改回 true。 -->
         <activity
             android:name=".SplashActivity"
-            android:exported="true"
+            android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.Touchpad.Splash"
-            android:launchMode="singleTask">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:launchMode="singleTask" />
 
         <activity
             android:name=".MainActivity"
@@ -51,7 +169,7 @@
             android:screenOrientation="sensorLandscape"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden">
-            <!-- 任意应用「分享」文件 -> 选「超级终端」-> 直接传到电脑中转目录 -->
+            <!-- 任意应用「分享」文件 -> 选「ConMarn」-> 直接传到电脑中转目录 -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
@@ -60,9 +178,176 @@
             </intent-filter>
         </activity>
 
+        <!-- ConMarn:她的房间。聊天/干活一个界面,语音+TTS。不需要麦克风权限
+             (录音在系统识别服务里),不需要悬浮窗权限(不是 overlay)。
+
+             ★ 2026-10-04:她是**唯一的门**了(桌面唯一图标 → ConMarnActivity),
+               所以加 `launchMode="singleTask"`。
+               原来它没有 launchMode(默认 standard),是**全项目唯一一个没有的** ——
+               MainActivity 和 SplashActivity 早就是 singleTask(这个坑撞过、修过,漏了她)。
+               今天她只能从 MainActivity 的一个按钮进,所以没暴露;变成主入口之后
+               还会被开机广播/通知/悬浮球从各处拉起,standard 的后果是:
+               **连着点两下桌面图标 → 两个房间、两个 WebView、两个她的身体**同时活着。
+               (人格是共享的 —— AiAgentHolder 是进程级单例;但 WebView 和 3D 场景
+                是每个 Activity 实例一份,那个是真会看到两个身体。) -->
+        <activity
+            android:name=".ConMarnActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- 超级工作台：和她**分开的**另一个界面（不是桌面上的第二个图标）。
+             入口只有一条 —— 房间里双指右滑（见 ConMarnActivity.dispatchTouchEvent）。
+             `exported=false`：外面任何应用都拉不起它，只有本 App 内部能开。
+             ★ 它和她的房间共用同一个进程、同一份 [AgentBus] 文件，但任务号前缀
+               不同（`w` / `t`），所以两边的账谁也看不见谁的活。 -->
+        <!-- OAuth 授权回来的那一扇小门（2026-11-06）。
+             ★ 必须 `exported="true"` —— 地址是**浏览器**发出来的，
+               `false` 在浏览器那边表现为「打不开这个链接」，用户只会看到一句
+               「无法打开网页」，看不出是我们没登记。
+             ★ 它不显示任何界面、不读任何参数，收下 `conmarn://oauth`
+               换完 token 就把自己关掉。**她的房间(ConMarnActivity)仍然是
+               `exported=false`** —— 门开在这一间小屋子里，不是房间门上。 -->
+        <activity
+            android:name=".OAuthReturnActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="conmarn" android:host="oauth" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".WorkbenchActivity"
+            android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- 工作区里那件成品的「应用外壳」（2026-11-06）。
+             代码档做出来的是网页；这里是它全屏跑的地方，也是桌面那个固定快捷方式
+             点开之后进来的地方。
+             ★ `exported=true` 是**必须的**：桌面发出去的启动请求来自桌面那个进程，
+               `false` 的话点图标会没反应。它只认工作区里的相对路径（`WorkCodeMath.rel`
+               会把 `..` 挡掉），碰不到别的东西。 -->
+        <activity
+            android:name=".WorkAppActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!-- 她的桌面图标 —— 2026-10-04 起是**唯一**的桌面入口。
+             为什么保留 alias 而不是保留 SplashActivity 那条:
+               alias 本来就长对了(名字 ConMarn、图标 ic_conmarn、目标 ConMarnActivity),
+               保留它 = 用户桌面上原来那个 ConMarn 图标**原地不动、位置不变**
+               (用户确认过平时点的就是它)。删掉的是他没在用的「若息·Terminal Max」那个。
+             反过来做(留 SplashActivity 当入口)两个图标会全失效,用户得重摆。
+             名字现在直接用 `app_name` —— App 自己就叫 ConMarn 了,不必再单独一条字符串。 -->
+        <activity-alias
+            android:name=".ConMarnLauncher"
+            android:targetActivity=".ConMarnActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_conmarn"
+            android:roundIcon="@mipmap/ic_conmarn_round"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- ★★ 2026-11-08(体检 E3):底座从 dataSync 换成 specialUse。
+             dataSync 在 Android 15+ 有「每 24 小时累计 6 小时」的硬上限,
+             到点系统就收;而「连着电脑挂一天」是正常用法。
+             理由同 HerLifeService(specialUse 无配额),见 KeepAliveService.updateType。
+             dataSync 仍留在声明里 —— 它是 specialUse 被拒时的最后兜底。 -->
         <service
             android:name=".KeepAliveService"
             android:exported="false"
-            android:foregroundServiceType="dataSync|camera|microphone" />
+            android:foregroundServiceType="specialUse|dataSync|camera|microphone">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="手机与电脑之间的实时投屏与输入桥接保活" />
+        </service>
+
+        <!-- 「她一直在」的前台服务。**和 KeepAliveService 并存,不动老的** ——
+             老的管「电脑连接 + 摄像头/麦克风」,是另一条生命周期。
+             ⚠️ 不用 dataSync 的理由见文件顶部那两条权限的注释。 -->
+        <service
+            android:name=".HerLifeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <!-- specialUse 必须给一个「干什么用的」理由,系统可能把它显示给用户。 -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="陪伴型助手常驻:在她不被打开时也保持可被唤醒,以便主动提醒与随时响应" />
+        </service>
+
+        <!-- 「悬浮条里跟她说话」的麦克风资格（2026-11-08 体检 A3/E6 补登）。
+             ★ 它原来**完全没被声明**、也没有任何代码启动过 —— 一个死类。
+             它要挡的正是悬浮条那条路上真实存在的坑：悬浮球是 overlay 不是 Activity,
+             屏幕上只有那颗球时系统把本 App 当后台,`AudioRecord` 不报错、只回零。
+             清单不声明它，就算有人去 start 也会被系统拒。理由详见 EarFgService 文件头。 -->
+        <service
+            android:name=".EarFgService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- 「唤醒词在听」的前台服务 —— **麦克风型**。
+             ★★ 它存在的唯一理由:这台机上录音权限是「仅在使用中允许」那一档,
+                App 一退后台系统喂给 AudioRecord 的就是**静音**(不报错、读数全零)。
+                而唤醒词要听的每一刻正好就是那一刻 —— 没有它,那个开关打开了也不会响。
+             权限和类型清单里早就声明过了(FOREGROUND_SERVICE_MICROPHONE),这次一个新权限都没加。
+             完整账见 WakeService.kt 的文件头。 -->
+        <service
+            android:name=".WakeService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- 重启 / 覆盖安装后把她接回来。
+             ★ exported="false" 收得到系统广播 —— 非导出接收器的规则是
+               「只收系统、同应用、同 UID 发来的」,BOOT_COMPLETED 正是系统发的。
+             (MANIFEST 里没有 <queries> 那种问题,这两条广播不需要。) -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 通知上「让她睡」的落点。不导出:只有我们自己的 PendingIntent 能触发它。 -->
+        <receiver
+            android:name=".HerSleepReceiver"
+            android:exported="false" />
+
+        <!-- 通知上「关掉」唤醒的落点。理由同上(见 WakeService.buildNotification)。 -->
+        <receiver
+            android:name=".WakeOffReceiver"
+            android:exported="false" />
+
+        <!-- 「定时任务到点了在跑」的前台服务。★ 同样用 specialUse：
+             跑一件活要几十秒到几分钟，而那时 App 多半在后台，随时会被系统收走。
+             理由和数据同步不一样 —— 它不是「在传数据」，是「她按约定做一件事」。 -->
+        <service
+            android:name=".TaskRunService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="按用户设定在指定时刻执行一项任务并把结果通知给用户" />
+        </service>
+
+        <!-- 闹钟的落点。不导出：只有我们自己的 PendingIntent 能触发它。 -->
+        <receiver
+            android:name=".TaskAlarmReceiver"
+            android:exported="false" />
     </application>
 </manifest>

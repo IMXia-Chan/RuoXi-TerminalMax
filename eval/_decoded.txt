@@ -1,0 +1,30 @@
+提示词 5442 字符 / 工具 15 个 —— 现场从 AiAgent.kt 抠的
+用例 10 条,温度 0.20,http://127.0.0.1:18080
+
+预热 21.4s
+
+  FAIL #43 定个六点半的闹钟               list_hands 的参数里没有「set_alarm」
+  FAIL #44 手机上打开相机                list_hands 的参数里没有「open_phone_app」
+  FAIL #45 上网查一下明天的天气             list_hands 的参数里没有「web_search」
+  FAIL #46 打开 www.bing.com        调成 open_app 了
+  FAIL #47 把「会议纪要」复制到剪贴板          list_hands 的参数里没有「copy」
+  FAIL #48 手机震一下                  list_hands 的参数里没有「vibrate」
+  FAIL #49 拨个 10086               list_hands 的参数里没有「dial」
+  FAIL #50 你现在能控制哪些设备             该调 list_hands,却只回了话
+        模型原话: 我主要控制这台电脑，能帮你打开微信、Chrome、切换窗口、点点击、打字、播放音乐、查资料，还能帮你设闹钟、查手机上的信息——但手机上的操作，比如点屏幕、拨号、设提醒，我得靠你自己手机来完成，我这边没法直接动。
+
+说白了，我就像你手机里的小助手，**只管电脑和你自己的手**，不碰你手机屏幕。要是你想让我帮你查个网址、设
+  ok   #51 在电脑上打开画图               → open_app       (18839ms)
+  ok   #52 电脑上那个记事本窗口切到前面         → focus_window   (24366ms)
+
+命中 2/10 = 20.0%   平均 14176ms/条
+
+打偏的:
+  #43 定个六点半的闹钟               list_hands 的参数里没有「set_alarm」
+  #44 手机上打开相机                list_hands 的参数里没有「open_phone_app」
+  #45 上网查一下明天的天气             list_hands 的参数里没有「web_search」
+  #46 打开 www.bing.com        调成 open_app 了
+  #47 把「会议纪要」复制到剪贴板          list_hands 的参数里没有「copy」
+  #48 手机震一下                  list_hands 的参数里没有「vibrate」
+  #49 拨个 10086               list_hands 的参数里没有「dial」
+  #50 你现在能控制哪些设备             该调 list_hands,却只回了话

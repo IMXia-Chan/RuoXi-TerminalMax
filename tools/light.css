@@ -1,0 +1,67 @@
+/* 浅色主题。
+   仅当 <html data-theme="light"> 时生效，未设置时沿用 site.css 的深色默认值。 */
+
+html[data-theme="light"]{
+  color-scheme:light;
+  --bg:#FFFFFF;
+  --bg-2:#FAFAFB;
+  --panel:#FFFFFF;
+  --panel-2:#F4F4F7;
+  --line:#E7E7EC;
+  --line-2:#D3D3DB;
+  --ink:#0E0E13;
+  --ink-2:#4E4E59;
+  --ink-3:#70707C;
+  --accent:#4F5BEA;
+  --accent-2:#6E79FF;
+  --accent-a:rgba(79,91,234,.10);
+  --good:#0E9F6E;
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover{background:#B9B9C6}
+
+html[data-theme="light"] .grid-bg{
+  background-image:
+    linear-gradient(rgba(12,12,20,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(12,12,20,.045) 1px,transparent 1px);
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.30) 46%,transparent 90%);
+  mask-image:linear-gradient(180deg,#000 0%,rgba(0,0,0,.30) 46%,transparent 90%);
+}
+
+html[data-theme="light"] .nav{background:rgba(255,255,255,.86)}
+
+html[data-theme="light"] .skip,
+html[data-theme="light"] .nav-dl,
+html[data-theme="light"] .btn-p{color:#FFFFFF}
+
+html[data-theme="light"] .hero::before{
+  background:radial-gradient(circle,rgba(79,91,234,.07),transparent 62%);
+}
+
+html[data-theme="light"] .device{
+  background:linear-gradient(180deg,#F1F1F4,#DCDCE2 72%);
+  box-shadow:0 40px 90px -52px rgba(14,14,26,.22),inset 0 1px 0 rgba(255,255,255,.95);
+}
+html[data-theme="light"] .screen{background-color:#F0F0F3}
+html[data-theme="light"] .screen::after{box-shadow:inset 0 0 0 1px rgba(14,14,26,.07)}
+html[data-theme="light"] .arch-fig{box-shadow:0 40px 80px -60px rgba(14,14,26,.28)}
+
+html[data-theme="light"] .legal a{border-bottom:1px solid rgba(79,91,234,.32)}
+html[data-theme="light"] .legal .toc{background:rgba(14,14,26,.02)}
+
+html[data-theme="light"] ::selection{background:var(--accent);color:#FFFFFF}
+
+/* 主题切换按钮（深浅两色下都生效） */
+.theme-toggle{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;flex:none;
+  border:1px solid var(--line-2);border-radius:999px;
+  background:transparent;color:var(--ink-2);
+  font-size:15px;line-height:1;cursor:pointer;
+  transition:border-color .18s,color .18s,background .18s;
+}
+.theme-toggle:hover{border-color:var(--ink-3);color:var(--ink)}
+.theme-toggle .i-sun{display:none}
+.theme-toggle .i-moon{display:inline}
+html[data-theme="light"] .theme-toggle .i-sun{display:inline}
+html[data-theme="light"] .theme-toggle .i-moon{display:none}

@@ -1,0 +1,36 @@
+{
+  "_说明": "AI 说出的应用名 -> 实际启动目标。留空/删掉某条也没关系:ai_tools 会自动扫开始菜单(用户级 + ProgramData)找 .lnk,这份表只用来补「开始菜单里没有的名字」和别名。改完保存即生效(mtime 热加载),不用重启 server。以 _ 开头的键是注释。",
+
+  "_示例": {
+    "_备注": "UWP 应用(网易云音乐、计算器、照片等)没有 .lnk,要用 shell:AppsFolder\\<包名>!<入口>;拿包名用 PowerShell: Get-StartApps",
+    "某UWP应用": "shell:AppsFolder\\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"
+  },
+
+  "浏览器": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Microsoft Edge.lnk",
+  "edge": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Microsoft Edge.lnk",
+  "微信": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\微信\\微信.lnk",
+  "wechat": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\微信\\微信.lnk",
+  "千问": "C:\\Users\\27014\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\千问.lnk",
+  "通义千问": "C:\\Users\\27014\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\千问.lnk",
+  "xmind": "C:\\Users\\27014\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Xmind.lnk",
+  "思维导图": "C:\\Users\\27014\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Xmind.lnk",
+  "obs": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\OBS Studio.lnk",
+  "录屏": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\OBS Studio.lnk",
+  "解压": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Bandizip\\Bandizip.lnk",
+  "bandizip": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Bandizip\\Bandizip.lnk",
+  "android studio": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Android Studio\\Android Studio.lnk",
+  "vscode": "C:\\Users\\27014\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Visual Studio Code\\Visual Studio Code.lnk",
+  "代码": "C:\\Users\\27014\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Visual Studio Code\\Visual Studio Code.lnk",
+
+  "记事本": "notepad.exe",
+  "计算器": "calc.exe",
+  "画图": "mspaint.exe",
+  "任务管理器": "taskmgr.exe",
+  "资源管理器": "explorer.exe",
+  "文件管理器": "explorer.exe",
+  "终端": "cmd.exe",
+  "命令行": "cmd.exe",
+  "设置": "ms-settings:",
+  "系统设置": "ms-settings:",
+  "控制面板": "control.exe"
+}

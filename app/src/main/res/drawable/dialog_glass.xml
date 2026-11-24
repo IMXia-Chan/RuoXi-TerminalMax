@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「输入配对码」那种弹窗的玻璃外壳。
+  ★ 2026-10-08 他点名:「我要透明磨砂玻璃感然后切成圆角」。
+
+  形状和颜色**都是照现成的抄的**,没自己发明一套:
+    · 圆角 26dp / 顶上高光 / 一道白棱 —— 和 [her_glass_pill] 同一个配方
+      (那是他 2026-10-04 拿着截图点名要的「透明磨砂玻璃」形状);
+    · 白玻璃这个做法本身 —— 照 [ov_hub_glass](她的呼出面板),那块他已经认过。
+
+  ★★ 一处**故意和那两块不同**:它比那两块白得多(约七成白;呼出面板九成、胶囊三成)。
+    理由很实在 —— 这块玻璃上要压**深色**的字(见 Theme.Touchpad.GlassDialog)。
+    半透明的白压在本就发暗的界面上,字会糊在一起看不见。这是可读性,不是审美。
+
+  ★★ 三条和 [her_glass_pill] 一样的老规矩(那儿写着理由,别在这儿重犯):
+    · 玻璃是**两层往上叠**(本体 + 高光),少了高光就是一块没有厚度的塑料片;
+    · 棱**只有一道**,别为了「精致」再套第二圈;
+    · 不加任何会动、会闪的东西 —— 他会删。
+
+  ⚠️ 这层玻璃是**画出来的,不是真的把背后糊掉**。这台机器上
+    `ro.surface_flinger.supports_background_blur` 是**空的**(2026-10-08 真机 getprop 查过),
+    系统不给做背景模糊 —— 所以它的「磨砂」只来自半透明 + 高光 + 棱,
+    背后能透出底色和轮廓,但不会被模糊。别指望它糊住什么。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ① 本体:上亮下暗(光从上面来),整块约七成白 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#C9FFFFFF"
+                android:centerColor="#B3FFFFFF"
+                android:endColor="#9CFFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+    <!-- ② 顶上的高光:亮到 18% 那一点就淡没了。玻璃的厚度全在这条上 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:centerY="0.18"
+                android:startColor="#99FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+    <!-- ③ 棱:1dp 白描边。★ 只有这一道 -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="1dp" android:color="#66FFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+</layer-list>

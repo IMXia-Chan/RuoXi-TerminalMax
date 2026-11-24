@@ -1,0 +1,546 @@
+/*
+ * 调度大屏的样式。
+ *
+ * ★ 单独一份文件，只为一件事：[tools/dash-preview.html] 在电脑上要**引用同一份 CSS**
+ *   才看得出真实的样子。样式内联在 index.html 里的话，预览就只能靠一份抄过去的副本，
+ *   而抄过去的那份迟早和真的不一样。
+ *
+ * ## 2026-11-05：他要的是「仪表盘式作战大屏」
+ *
+ * 参考图是一整屏密集的小字读数 + 中央放射状数据场 + 底部密排面板。这里照那个**密度**
+ * 来做，但守住一条：**密度来自真数据，不来自装饰**——
+ *   · 中央的每一条射线都对应一次真实的派活；
+ *   · 每个读数都是真的计数；
+ *   · 空屏就是空屏：没有事件的时候，图和字都停在那里，不自己动。
+ * ★ 这一屏**一句说明都不写**：解释在设置页那一行小字里。
+ */
+:root {
+  --bg: #05080F;
+  --fg: #E6EFFA;
+  --dim: #94A7C6;
+  --faint: #5B6C8A;
+  --accent: #489EFF;
+  --cyan: #7EE2FF;
+  --red: #FF6B81;
+  --warm: #FFC478;
+  --line: rgba(72, 158, 255, 0.15);
+  /* 卡片/分栏用的一道**白发丝**：比彩色描边细、比纯黑干净 —— 高级感全在这一道上。 */
+  --hair: rgba(226, 238, 255, 0.075);
+  --mono: ui-monospace, Menlo, Consolas, "Roboto Mono", monospace;
+  /* ★ 2026-11-06：左右分栏比例**只写在这一处**（他拍板固定 58%，不可拖）。
+     顶栏那行 SESSION 的宽度也跟着它算，所以它是全屏唯一的一个数。 */
+  --split: 30.5%;
+}
+/* 竖屏是上下分：场在上、列表在下。同一个比例，换的是方向。 */
+@media (orientation: portrait) { :root { --split: 55%; } }
+
+/*
+ * ★ 整页**不再滚动**（2026-11-05 改成一块屏内分区）。
+ *
+ *   现在是三块并排：左＝场，中间一条可拖的分界，右＝列表。
+ *   列表自己滚，页面不动 —— 所以标题不再需要 sticky，它天然就在顶上不动。
+ *   （上一版是整页滚 + sticky 标题，那套的坑记在 git 里，别再改回去。）
+ */
+html, body {
+  margin: 0; height: 100%;
+  background: var(--bg); color: var(--fg);
+  font: 13px/1.55 "Noto Sans SC", "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  overflow: hidden;
+}
+
+/*
+ * ★ 这一屏**不是文档**：长按一律不许变成「选字 / 复制」。
+ *
+ *   2026-11-06 他报的：「长按顶部对话那个能归档、删除的，系统会自己错误弄成复制」——
+ *   任务条上那一下长按本来是「停止 / 归档 / 彻底删」的菜单，被系统的文字选择
+ *   抢走了，菜单根本出不来。选择手柄一出现，`pointerup` 也可能被判成
+ *   `pointercancel`，于是连切任务都做不到。
+ *
+ *   关掉的是**选择**，不是点按：`#list` 里的行照样点得开、任务条照样切得过去。
+ */
+html, body {
+  -webkit-user-select: none; -moz-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+/* 报告那一段是要读的，但也**不需要选**（全文在步骤账本里）；
+   万一以后要放开，只放开这一处，别放开整页。 */
+.line.report .txt { -webkit-user-select: none; user-select: none; }
+
+/* ★ 这一屏是「一块屏」，不是一篇可以翻的文档：滚动条一律不画。
+   列表照样能滚（`#list` 的 overflow-y: auto 还在），只是不再画那条灰杠。 */
+::-webkit-scrollbar { width: 0; height: 0; }
+
+body { display: flex; flex-direction: column; }
+
+/* 分栏：左场 / 分界 / 右列表。比例由 `--split` 控制，拖动分界时改它。 */
+#panes {
+  flex: 1 1 auto; min-height: 0; min-width: 0;
+  display: grid;
+  /* ★ 右栏必须是 `minmax(0, 1fr)`，不能是 `1fr`：`1fr` 的隐式最小值是 min-content，
+     而列表里每一行都是 nowrap —— 竖屏下整块盘会被撑得比屏还宽，右边直接切掉。 */
+  grid-template-columns: var(--split) minmax(0, 1fr);
+}
+
+/* ── 底：网格 + 顶部辉光。静态，不跟事件动 ── */
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    linear-gradient(rgba(72, 158, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(72, 158, 255, 0.028) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(130% 62% at 50% 0%, #000 0%, transparent 72%);
+  mask-image: radial-gradient(130% 62% at 50% 0%, #000 0%, transparent 72%);
+}
+/* ★ 顶上那层极淡的辉光。原来的扫描线（每 4px 一根黑线）2026-11-05 撤掉了 ——
+   它把整屏压暗一档、还带摩尔纹，正是「不好看」的那一类。 */
+body::after {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(120% 52% at 50% -12%, rgba(72, 158, 255, 0.11), rgba(72, 158, 255, 0) 62%),
+    radial-gradient(80% 40% at 8% 108%, rgba(126, 226, 255, 0.05), rgba(126, 226, 255, 0) 60%);
+}
+
+/* ── 外框：四角准星 + 两侧刻度 ──
+ *
+ * ★ 2026-11-05 他要「更像仪器」。这一层是**纯外壳**：一个像素都不表示数据，
+ *   数据层的规矩一点没松。它的作用是让整块屏有「边界」——没有边界的界面像网页，
+ *   有边界的像仪表。
+ * ★ `pointer-events: none`：它压在所有东西上面，绝不能挡住下面能点、能拖的地方。
+ */
+#frame {
+  /* ★ 压在标题玻璃**上面**（#hdr 是 5）：四角准星是整屏的边，
+     被顶栏切掉一角就露馅了。手指碰不到它（`pointer-events: none`）。 */
+  position: fixed; inset: 0; z-index: 6; pointer-events: none;
+}
+#frame .c {
+  position: absolute; width: 15px; height: 15px;
+  border: 1px solid rgba(72, 158, 255, 0.55);
+}
+#frame .tl { left: 5px; top: 5px; border-right: 0; border-bottom: 0; }
+#frame .tr { right: 5px; top: 5px; border-left: 0; border-bottom: 0; }
+#frame .bl { left: 5px; bottom: 5px; border-right: 0; border-top: 0; }
+#frame .br { right: 5px; bottom: 5px; border-left: 0; border-top: 0; }
+/* 两侧刻度尺：一段虚线，从上往下。 */
+#frame::before, #frame::after {
+  content: ""; position: absolute; top: 18%; bottom: 18%; width: 1px;
+  background: repeating-linear-gradient(180deg,
+    rgba(72, 158, 255, 0.32) 0 1px, transparent 1px 9px);
+}
+#frame::before { left: 5px; }
+#frame::after { right: 5px; }
+
+/* ── 标题块：**吸顶的磨砂玻璃** ──
+ *
+ * ★ 2026-11-05 他说的：「顶上的 agent ops 需要做成磨砂透明玻璃，不然往下翻会遮盖页面」。
+ *   要的是**内容从玻璃下面过**，不是被一块不透明的板压住。所以两件事一起改：
+ *   ① `position: sticky` —— 滚到哪儿它都在顶上（标题是这个屏唯一的身份，滚没了就认不出）；
+ *   ② 半透明底色 + `backdrop-filter` —— 底下的字和线透上来，只是糊掉。
+ *
+ * ⚠️ Android WebView 未必支持 `backdrop-filter`（真模糊），所以**不能只靠它**：
+ *   底色本身就是半透明的，不支持模糊时退化成「一层薄雾」，一样看得见下面在动。
+ *   这台机器没有系统级模糊这件事见 `ruoxi-glass-dialog-pairing`。
+ */
+/* ★ 2026-11-06：顶栏改成**浮在页面上的一层玻璃**，不再占排版的高度。
+ *   以前它是 `flex: 0 0 auto`，实打实吃掉六十来像素 —— 这块屏本来就矮，场被压得只剩一条。
+ *   现在它 `position: absolute` 贴在顶上，场从 y=0 长到屏幕底，球能大一圈。
+ *   `pointer-events: none`：玻璃只负责好看，不许挡下面能点能拖的地方。
+ *   下沿用遮罩渐隐，不切一刀硬边。 */
+/* ★ 2026-11-06：整屏宽，压到**最底层**。
+   上一版为了不糊掉右边那条折线，把玻璃截到分界为止 —— 顶上就出现一道硬边（他说的
+   「割裂」）。解法不是把玻璃切小，而是把它沉下去：`#stage` 和 `#side` 都是 z-index 1
+   且排在它后面（同一层按文档顺序，后来者在上），所以玻璃在**内容之下**，右边的线
+   一点不受影响，横跨整屏也不会切出一道边。 */
+#hdr {
+  position: absolute; left: 0; top: 0; right: 0;
+  z-index: 5; pointer-events: none;
+  /* ★ 右侧不再留 96px：那一条是给右上角那两颗原生钮的，可这一行字被钉死在左半边
+     （见下面 `.s` 的 max-width），本来就走不到那儿去。留着只会把可用宽度算窄 96px，
+     白白让 SESSION 那行提前截断。 */
+  padding: 12px 16px 12px 16px;
+  /* ★ 2026-11-06：**只有字，底全透明**。
+     玻璃那一版不管怎么调都躲不开两个毛病：横向截断会切出一道硬边（「割裂」），
+     铺满整屏又会糊掉右边那条折线。干脆不要底 —— 没有底就没有边，也就挡不住任何东西。
+     字压在场上，靠那团冷光衬着，不加任何蒙版和投影。 */
+  background: none;
+  box-shadow: none;
+}
+#hdr .t {
+  font: 600 13px/1.4 var(--mono);
+  color: var(--fg);
+  /* ★ 2026-11-06：左边只剩三成宽（约 241px），15 个字符加 0.13em 字距约 142px，排得下。
+     （之前被截断不是字距的问题，是 WebView 跟着系统 1.6 倍字号放大，见 DashWeb.textZoom。） */
+  letter-spacing: 0.13em;
+  /* ★ 底去了以后，环的亮线会从字中间穿过去。给字下面垫一层黑晕 —— 不是底色，
+     只是把字和身后那道光分开，透明度还是全透。 */
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.85);
+  /* ★ 只许待在左半边：右边是另一栏的地盘，宁可自己收尾，也不许压过去。 */
+  max-width: calc(var(--split) - 26px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#hdr .t::before {
+  content: "";
+  display: inline-block;
+  width: 5px; height: 5px;
+  margin-right: 9px; vertical-align: 1.5px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px rgba(126, 226, 255, 0.85);
+}
+#hdr .s {
+  font: 8px/1.7 var(--mono);
+  /* 这行字正好横穿环的上弧，那道白线比它亮得多 —— 颜色提亮一档，再描一圈黑边。 */
+  color: #C9D8F0;
+  letter-spacing: 0.10em;
+  margin-top: 3px;
+  /* ★ 底撤了以后，这行小字正好落在环的上弧上 —— 0.72 的透明度等于把它交给了那道光。
+     抬到 0.92，再压一层更实的黑晕，读数和场就分得开。 */
+  opacity: 0.92;
+  /* ★ 2026-11-06：这一行只许待在**左半边**（他说的「只能显示在左边的区域中」）。
+     宽度跟着分界走，越界就省略号收尾 —— 不许爬到球上和右栏里去。 */
+  max-width: calc(var(--split, 58%) - 26px);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* 四向 1px 的黑描边 + 一团晕：环的亮线从字中间穿过去，字也不会被吃没。 */
+  text-shadow:
+    1px 0 0 rgba(0, 0, 0, 0.95), -1px 0 0 rgba(0, 0, 0, 0.95),
+    0 1px 0 rgba(0, 0, 0, 0.95), 0 -1px 0 rgba(0, 0, 0, 0.95),
+    0 1px 12px rgba(0, 0, 0, 1), 0 0 6px rgba(0, 0, 0, 1);
+}
+/* 竖屏的窄屏：字距收一收，这一行才排得下（折成两行会让顶栏忽高忽低）。 */
+@media (max-width: 560px) {
+  #hdr .s { font-size: 7.5px; letter-spacing: 0.03em; opacity: 0.85; }
+}
+
+/* ── 场 ──
+ * 整块上半屏都交给它：这张屏的「宏大」全靠这一块，缩到 30vh 就只剩一条装饰带。
+ * 画布铺满舞台，读数条压在画布下沿 —— 和参照图一样，读数浮在场上面。 */
+#stage {
+  position: relative; z-index: 1; min-width: 0; min-height: 0;
+  overflow: hidden;
+}
+#cv { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
+/* ★ 2026-11-06：分界带（#grip）撤掉 —— 比例已经钉死，留着 9px 只会白吃宽度，
+   还暗示「这里能拖」。左右之间那道 1px 的线由 `#side` 的 border-left 出。 */
+
+/* ── 竖屏：同一块屏，分成上下两区 ──
+ * ★ 竖屏下再左右分，左边那条场只剩两百来像素宽、右边那栏连一行读数都排不下 ——
+ *   「一块屏内分区」在竖屏里本来就是上下分，不是左右分。所以这里只换分栏方向。
+ * ★ 比例还是同一个 `--split`，只是竖屏那份值在文件顶上的 `:root` 里给成 55%。 */
+@media (orientation: portrait) {
+  #panes { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--split) minmax(0, 1fr); }
+  #side { border-left: 0; border-top: 1px solid rgba(72, 158, 255, 0.10); }
+}
+
+/* ── 右栏：列表自己滚 ── */
+#side {
+  min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  border-left: 1px solid rgba(72, 158, 255, 0.10);
+}
+
+/* ── 任务条：一件活一格 ──
+ * ★ 2026-11-06 立的。只有超级工作台会推内容（`window.dashJobs`），她的房间里
+ *   这条一直是 `hidden` —— 所以它不占位置、也不改变她那块屏的任何尺寸。
+ *
+ * ★ 横向滚动、**不折行**：工作台上可能挂着好几件，折行会让这一条越长越高，
+ *   把下面的列表一截一截吃掉。宁可让他横着拨。
+ * ★ 一格 = 代号 + 状态 + 一句话标题。标题长了省略 —— 一行就一指宽，
+ *   要看全的按下去（长按出菜单，里面带整句）。 */
+#jobs {
+  position: relative; z-index: 2;
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px 5px;
+  overflow-x: auto; overflow-y: hidden;
+  border-bottom: 1px solid var(--hair);
+  -webkit-overflow-scrolling: touch;
+}
+#jobs[hidden] { display: none; }
+
+.job {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 5px;
+  max-width: 150px;
+  padding: 3px 8px 3px 7px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: rgba(72, 158, 255, 0.05);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: .02em;
+  color: var(--dim);
+  white-space: nowrap; overflow: hidden;
+}
+.job b { font-weight: 700; color: #CFE6FF; }
+.job i { font-style: normal; font-size: 9.5px; color: var(--faint); }
+.job span { overflow: hidden; text-overflow: ellipsis; }
+.job.on {
+  border-color: rgba(126, 226, 255, 0.55);
+  background: rgba(126, 226, 255, 0.10);
+  color: #BFF3EE;
+}
+.job.run i { color: var(--cyan); }
+.job.done i { color: #7BDCA4; }
+.job.bad i { color: var(--red); }
+/* 归档的那几格：还在，但**不在工作台上**。点下去出菜单，不切过去。 */
+.job.off { opacity: .42; border-style: dashed; }
+
+/* `+` 那一格：新开一件。它不是一件活，所以没有代号、没有状态。 */
+.job.add {
+  padding: 3px 9px;
+  color: var(--cyan);
+  border-color: rgba(126, 226, 255, 0.28);
+}
+
+/* ── 读数条（压在场下沿） ── */
+/* ★ 2026-11-06：读数条也改成**只有字**（和顶栏同一个道理）。
+ *   原来它是一条带渐变的实心带子，压在场的最下沿 —— 球一放大就被它切掉一截。
+ *   现在没有底、没有分隔线、没有顶边，就是五个数字浮在场下面；字号和间距不动，
+ *   另外把上沿那 22px 的渐隐留白撤了，这条带子整体矮了一截，场能多长一点。 */
+#hud {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  display: flex; gap: 8px; align-items: flex-start;
+  /* ★ 2026-11-06：五格**按内容定宽、两端对齐**。
+     原来五格等分（`flex: 1 1 0`），在 181px 的左栏里每格只有 31px ——
+     「6.7k」撑破一格、「执行中」折成两行。按内容定宽之后，窄的窄、宽的宽，
+     合起来 136px，还留得下 20 多像素的空隙。 */
+  justify-content: space-between;
+  padding: 2px 8px 10px;
+  background: none;
+}
+#hud .stat { flex: 0 0 auto; min-width: 0; }
+#hud .stat:first-child { padding-left: 0; }
+#hud .stat b {
+  display: block;
+  font: 600 18px/1.1 var(--mono);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  /* 底撤了，数字直接压在场上 —— 垫一层黑晕，环的亮线过不去。 */
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.95), 0 0 3px rgba(0, 0, 0, 0.85);
+}
+#hud .stat.zero b { color: var(--faint); opacity: 0.6; }
+#hud .stat.run b { color: var(--cyan); }
+/* token 读数用暖色，和「在跑」的薄荷、失败的警示红分开。 */
+#hud .stat.tok b { color: var(--warm); }
+#hud .stat.err b { color: var(--red); }
+#hud .stat span {
+  display: block;
+  margin-top: 1px;
+  font: 8.5px/1.6 var(--mono);
+  letter-spacing: 0.18em;
+  color: var(--faint);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+}
+
+/* ★ 数字动效：**只有真变了的格子**才闪一下（哪一格变，见 dash-app.js 的 paintHud）。
+   闪的那格就是刚发生的事落在哪一格 —— 所以它不是装饰，是一条读数在说话。 */
+@keyframes hudbump {
+  0%   { transform: scale(1.32); filter: brightness(2.2); }
+  55%  { transform: scale(1.06); filter: brightness(1.35); }
+  100% { transform: scale(1);    filter: none; }
+}
+#hud .stat.bump b {
+  animation: hudbump 0.6s ease-out;
+  transform-origin: left center;
+}
+
+/* ── 事件列表 ── */
+#list {
+  position: relative; z-index: 1;
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* ★ 底下留出的这一段是给**浮在屏上的底栏**（工作台那条玻璃）。
+     不留的话最后一行永远压在栏下面，而他正要看的就是最后一行 —— 报告。 */
+  padding: 8px 12px 96px;
+}
+
+.line {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+}
+.line.self .txt { color: #FFFFFF; font-weight: 500; }
+.line.err .txt { color: var(--red); }
+.who {
+  flex: 0 0 auto;
+  font: 9.5px/1.55 var(--mono);
+  color: var(--faint); letter-spacing: 0.06em;
+}
+.kind {
+  flex: 0 0 auto;
+  font: 8.5px/14px var(--mono);
+  color: var(--dim);
+  border: 1px solid var(--line); border-radius: 2px;
+  padding: 0 3px; letter-spacing: 0.08em;
+}
+.txt { flex: 1 1 auto; min-width: 0; font-size: 12px; }
+
+/* ── 报告：时间线上**最后一句它自己说的话**，铺开正文 ──
+ * 它和别的行长得不一样是有理由的：别的行是过程，这一条是结论。
+ * 结论要被直接读到 —— 再点开一次弹窗，就成「从一个对话框跳到另一个」。 */
+.line.report {
+  flex-direction: column; align-items: stretch; gap: 3px;
+  padding: 9px 0 11px;
+}
+.line.report .who, .line.report .kind { align-self: flex-start; }
+.line.report .txt {
+  white-space: pre-wrap; word-break: break-word;
+  font-size: 13px; line-height: 1.66; color: #EAF6F2;
+  max-height: 46vh; overflow-y: auto;
+}
+
+/* ── 接力：段与段之间那一条 ──
+ * 它不是旁白，是交接。所以给一条竖直的导轨，和上下两张卡连起来，
+ * 一眼看得出「这几张卡是一条链，不是同时派出去的一组」。 */
+.line.chain {
+  border-bottom: 0;
+  margin-left: 7px;
+  padding: 1px 0 1px 13px;
+  position: relative;
+}
+.line.chain::before {
+  content: "";
+  position: absolute; left: 3px; top: -3px; bottom: -3px;
+  width: 1px;
+  background: linear-gradient(180deg,
+    rgba(126, 226, 255, 0.45), rgba(126, 226, 255, 0.18));
+}
+.line.chain .txt {
+  font: 10px/1.7 var(--mono);
+  color: rgba(126, 226, 255, 0.72);
+  letter-spacing: 0.03em;
+}
+
+/* ── 作战卡：**一行** ──
+ *
+ * ★ 2026-11-05 他的原话：「底下那一片文章感觉太复杂，能不能用代号来」。
+ *   所以每张卡从「岗位 + 任务 + 回答三段」压成**一行读数**：
+ *
+ *       01  编辑              22 字 · 4.0s
+ *
+ *   代号和左边场上那个节点是同一个数 —— 一眼就能把「列表里这一行」和
+ *   「场里那个点」对上。想知道它到底写了什么，点一下（原文在 StepStore）。
+ *   ★ 压的是**排版**，不是信息：一条事件都没少，只是从「铺开」换成「叠起来」。
+ */
+.card {
+  position: relative;
+  display: flex; align-items: baseline; gap: 8px;
+  border: 1px solid var(--hair);
+  border-left: 2px solid rgba(72, 158, 255, 0.55);
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(72, 158, 255, 0.055), rgba(72, 158, 255, 0.008));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  padding: 6px 9px 7px;
+  margin: 4px 0;
+}
+/* 代号：场和列表之间的**同一个数** */
+.code {
+  flex: 0 0 auto;
+  font: 600 10px/1 var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--cyan);
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+/* 接力链上的下一段：缩进一格，左边补一道竖轨接到上面那条交接记录上。 */
+.card.chained { margin-left: 12px; }
+.card.chained::after {
+  content: "";
+  position: absolute; left: -8px; top: -16px; height: 26px;
+  width: 1px;
+  background: rgba(126, 226, 255, 0.28);
+}
+.card.run { border-left-color: var(--cyan); }
+.card.fail { border-left-color: var(--red); }
+.card.done { border-left-color: rgba(72, 158, 255, 0.35); }
+.role {
+  font-size: 13px; font-weight: 600; color: var(--fg);
+  letter-spacing: 0.05em;
+}
+/*
+ * ★ 2026-11-05 竖屏实测：右边那栏只有一屏宽的一半，`回来 22 字 · 4.0s` 会被切掉半个字，
+ *   而且切在卡片**外面**（横着溢出到看不见的地方）。两处一起治：
+ *   ① 这行文字本身允许缩、缩不下就省略；
+ *   ② `#list` 横着不许滚 —— 横着能滚的列表，手指一歪就整栏跟着晃。
+ */
+.card .role {
+  flex: 0 1 auto; min-width: 0; font-size: 12.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 角色和结果之间那段点线。它是**一行之内**的连接线，不表示别的 —— 
+   留白留成一大片，看着像没画完。 */
+.lead {
+  flex: 1 1 auto; min-width: 10px; height: 1px;
+  align-self: center;
+  background-image: linear-gradient(90deg,
+    rgba(226, 238, 255, 0.16) 0 2px, transparent 2px 5px);
+  background-size: 5px 1px;
+  opacity: 0.7;
+}
+.status {
+  margin-left: auto;
+  flex: 0 1 auto; min-width: 0;
+  font: 9.5px/1.55 var(--mono);
+  color: var(--faint);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* ★ 状态 = **文字 + 点**，从不只靠颜色（色盲看得出，黑底上也压不过正文）。 */
+.status::before {
+  content: "";
+  display: inline-block;
+  width: 5px; height: 5px; border-radius: 50%;
+  margin-right: 5px; vertical-align: 1px;
+  background: currentColor;
+}
+.status.run { color: var(--cyan); }
+.status.err { color: var(--red); }
+
+/* ── 编队框：同一次扇出的几份 ── */
+.group {
+  position: relative;
+  margin: 11px 0;
+  padding: 0 9px 3px;
+  border: 1px solid rgba(126, 226, 255, 0.16);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(126, 226, 255, 0.040), transparent 60%);
+}
+.group::before, .group::after {
+  content: "";
+  position: absolute; width: 11px; height: 11px;
+  border: 1px solid var(--cyan); opacity: 0.55;
+}
+.group::before { left: -1px; top: -1px; border-right: 0; border-bottom: 0; }
+.group::after { right: -1px; bottom: -1px; border-left: 0; border-top: 0; }
+.ghead {
+  font: 9px/1.6 var(--mono);
+  color: var(--cyan); letter-spacing: 0.14em;
+  padding: 6px 0 1px;
+}
+/* ★ 子 agent 缩进一点：中枢的行是全宽的，别人的活是缩进去的 —— 靠缩进区分层级，
+   不给中枢画皇冠（调研里六个项目没有一个那么做）。 */
+.group > .card { margin: 5px 0 5px 7px; }
+
+/* ── 空屏 ── */
+#empty {
+  position: relative; z-index: 1;
+  display: none; padding: 40px 28px; text-align: center;
+  /* ★ 2026-11-06 他：「在下面写那两行字往上移……透明磨砂玻璃挡到一些」。
+     `#empty` 是列表的**下一个**兄弟，天生落在整栏最底下 —— 正好压在那条浮起的
+     玻璃底栏下面。给它的下边距和 `#list` 的 padding-bottom 取同一个数（96px），
+     两处一起改，别只改一处。 */
+  margin-bottom: 96px;
+  color: var(--faint); font-size: 12px; line-height: 2;
+  letter-spacing: 0.04em;
+  /* ★ 文案由 Android 那边整段传进来（[DashWeb] 的 `empty`），换行用 `\n` 写，
+     所以这里要认它 —— 不然两行会连成一行。 */
+  white-space: pre-line;
+}
+
+/* ★ 2026-11-06 撤掉「收起侧栏 / 当场全屏」那颗 ‹ › 钮：他不再要这个动作。
+   场和右栏的比例已经钉死在 30.5%（`:root` 里的 `--split`）。 */

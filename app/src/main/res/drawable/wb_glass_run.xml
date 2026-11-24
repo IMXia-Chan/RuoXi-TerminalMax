@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  超级工作台：开跑 —— 整条底栏**唯一**一处亮的玻璃。
+
+  ★ 一屏里只能有一个「现在该按这个」，所以它保持实心的青绿，不像别的片那样
+    只是描边；但仍然做成玻璃（上亮下暗 + 一道白棱），不是一块塑料色块。
+
+  ★ 底色不能太透：这一颗上压的是**深色**的字，透太多就读不清了。
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#B35BE8E0" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <solid android:color="#3A5BE8E0" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#E05BE8E0" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+</selector>

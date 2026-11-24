@@ -51,6 +51,21 @@ class MediaStreamer(private val context: Context) {
     @Volatile private var connected = false
     @Volatile private var wantCamera = false          // 用户是否仍想开摄像头(掉线/设备报错后自动重开)
     private val reconnecting = AtomicBoolean(false)   // 防多条线程同时抢着重连媒体 socket
+
+    /**
+     * ★★ 2026-11-08(体检):连接**必须挪下主线程**。
+     *
+     * 原来 [ensureConnected] 在这里 `Thread(...).join(3500)`,而 [startCamera]/[startMic]
+     * 的调用方都是界面上的按钮 —— 地址不通时按一下要卡三秒多(connect 超时 3s + join 余量),
+     * 这就是 ANR 的现成配方,而且卡的时候屏幕上**什么都不会变**,看起来像「点了没反应」。
+     *
+     * 现在:主线程只发起、不等;连上以后把当时按下的那两件事在主线程上补做。
+     * 后台调用方(本来就不该占主线程)照旧同步等结果。
+     */
+    @Volatile private var connecting = false
+    @Volatile private var pendingCamera = false
+    @Volatile private var pendingMic = false
+    private val mainHandler by lazy { Handler(android.os.Looper.getMainLooper()) }
     private var fpsRange: Range<Int>? = null          // 采集限帧档位(从相机支持的档里挑)
     private var ip: String = ""
     private var port: Int = 9527
@@ -114,26 +129,59 @@ class MediaStreamer(private val context: Context) {
         }
     }
 
-    /** 确保媒体连接是活的;断了就重建。网络操作放到后台线程,规避主线程限制。 */
+    /**
+     * 确保媒体连接是活的;断了就重建。
+     *
+     * @return true = **现在**就是通的,调用方可以立刻往下走。
+     *   false = 通不了(地址/token 没配)或者**正在后头连** —— 后者连上以后会把
+     *   这期间按下的「开摄像头 / 开麦克风」在主线程上补做(见 [pendingCamera] / [pendingMic])。
+     *
+     * ★★ 主线程**绝不等**。旧写法是起线程再 `join(3500)`:连接超时 3 秒,join 又给 3.5 秒,
+     *   而调用方全是界面按钮 —— 按一下卡三秒,屏幕一动不动,既是 ANR 前兆,
+     *   也让人以为「点了没反应」。后台调用方本来就该阻塞,照旧同步拿结果。
+     */
     private fun ensureConnected(): Boolean {
         if (connected && socket != null) return true
         if (ip.isEmpty() || token.isEmpty()) return false
-        val ok = AtomicBoolean(false)
-        val t = Thread { ok.set(connectNow()) }
-        t.isDaemon = true
-        t.start()
-        try { t.join(3500) } catch (_: InterruptedException) {}
-        return ok.get()
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            // 后台线程:等得起,而且调用方要的是同步答案。
+            return connectNow()
+        }
+        if (connecting) return false
+        connecting = true
+        Thread {
+            val ok = connectNow()
+            connecting = false
+            if (ok) mainHandler.post {
+                if (pendingCamera) {
+                    pendingCamera = false
+                    log("媒体连上了 —— 补开摄像头")
+                    startCamera()
+                }
+                if (pendingMic) {
+                    pendingMic = false
+                    log("媒体连上了 —— 补开麦克风")
+                    startMic()
+                }
+            }
+        }.apply { isDaemon = true }.start()
+        return false
     }
 
     /** 在后台线程里真正建立媒体连接(connect + 认证)。 */
     private fun connectNow(): Boolean {
         try {
             try { socket?.close() } catch (_: Exception) {}   // 关掉可能残留的半开 socket
+            CloudNet.checkHost(ip)   // 云端总闸：私有地址照常放行
             val s = Socket()
             s.tcpNoDelay = true
             s.keepAlive = true
             s.connect(InetSocketAddress(ip, port), 3000)
+            // ★★ 2026-11-08(体检):`connect` 只管握手,管不到「连上了、但对面不说话」。
+            //   下面那句 readLine 等 MEDIA_OK 时没有上限 —— 对面卡住/半死时这条线程
+            //   会永远挂在 read 上,`connecting` 也永远是 true,从此再也连不上。
+            //   认证只有一行,3 秒足够;之后这个 socket 只写不读。
+            s.soTimeout = 3000
             socket = s
             out = s.getOutputStream()
             writeBytes(("MEDIA $token\n").toByteArray(Charsets.UTF_8))
@@ -164,7 +212,12 @@ class MediaStreamer(private val context: Context) {
     fun startCamera() {
         if (cameraRunning) return
         wantCamera = true
-        if (!ensureConnected()) { log("媒体未连接,无法推摄像头"); return }
+        if (!ensureConnected()) {
+            // ★ 正在连 = 不是失败,连上会自己回来开;只有真配不出地址才算失败。
+            if (connecting) pendingCamera = true
+            log(if (connecting) "媒体正在连接,连上就开摄像头" else "媒体未连接,无法推摄像头")
+            return
+        }
         openCamera()
     }
 
@@ -196,6 +249,7 @@ class MediaStreamer(private val context: Context) {
 
     fun stopCamera() {
         wantCamera = false
+        pendingCamera = false     // ★ 连接还没回来时又点了关 —— 连上以后不许把它补开
         cameraRunning = false
         try { captureSession?.close() } catch (_: Exception) {}
         captureSession = null
@@ -495,7 +549,11 @@ class MediaStreamer(private val context: Context) {
     // ================= 麦克风 =================
     fun startMic() {
         if (micRunning) return
-        if (!ensureConnected()) { log("媒体未连接,无法推麦克风"); return }
+        if (!ensureConnected()) {
+            if (connecting) pendingMic = true
+            log(if (connecting) "媒体正在连接,连上就开麦克风" else "媒体未连接,无法推麦克风")
+            return
+        }
         val bufSize = AudioRecord.getMinBufferSize(
             AUDIO_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
         )
@@ -509,6 +567,10 @@ class MediaStreamer(private val context: Context) {
         }
         audioRecord!!.startRecording()
         micRunning = true
+        // ★ 告诉 [MicGate]「麦克风在推流」。**这一行和下面 stopMic 里那一行是配对的**,
+        //   漏了任何一边,她的耳朵就会永久性地「被占着」—— 一个再也不会打开的开关。
+        //   在这里占而不是在构造时占:没真开始推流就不该拦着耳朵。
+        MicGate.acquire(MicGate.STREAM)
         val chunk = ByteArray(AUDIO_CHUNK)
         micThread = Thread {
             log("麦克风推流中…")
@@ -520,12 +582,19 @@ class MediaStreamer(private val context: Context) {
     }
 
     fun stopMic() {
+        pendingMic = false        // ★ 同 stopCamera:连接路上点过的那一下作废
         micRunning = false
         try { audioRecord?.stop() } catch (_: Exception) {}
         try { audioRecord?.release() } catch (_: Exception) {}
         audioRecord = null
         micThread = null
+        // 和 startMic 里那一行配对。**先放门再返回**,顺序不能反 ——
+        // 反了的话耳朵会在这个方法的尾巴上撞见「还被占着」,然后放弃。
+        MicGate.release(MicGate.STREAM)
     }
+
+    /** 麦克风现在是不是正被推流占着(语音唤醒要避开 —— 抢麦两边都听不清)。 */
+    val isMicOn: Boolean get() = micRunning
 
     // ================= 传输 =================
     private fun writeFrame(type: Int, payload: ByteArray) {

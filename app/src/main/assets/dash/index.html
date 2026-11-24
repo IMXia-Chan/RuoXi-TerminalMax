@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>调度</title>
+<link rel="stylesheet" href="dash.css">
+</head>
+<body>
+  <div id="hdr">
+    <div class="t">AGENT OPS / DISPATCH CENTER</div>
+    <div class="s" id="sub">SESSION —</div>
+  </div>
+
+  <!-- 外框：四角准星 + 两侧刻度。只管看起来像一台仪器，不碰任何数据。 -->
+  <div id="frame" aria-hidden="true">
+    <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+  </div>
+
+  <div id="panes">
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="hud"></div>
+    </div>
+    <div id="side">
+      <!-- 任务条：一件活一格。★ 只有超级工作台会推这一条（`window.dashJobs`）；
+           她的房间里不推，所以整条一直是 `hidden`，不占任何位置。 -->
+      <div id="jobs" hidden></div>
+      <div id="list"></div>
+      <div id="empty">还没有事件。<br>她一开口派活，这里会一行一行长出来。</div>
+    </div>
+  </div>
+
+  <script src="dash-core.js"></script>
+  <script src="dash-app.js"></script>
+</body>
+</html>

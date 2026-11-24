@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>dash-core 判据</title>
+<style>
+  body { background:#05080A; color:#7FBFAE; font:12px/1.6 ui-monospace,Consolas,monospace; padding:16px; }
+  pre { white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<script src="../app/src/main/assets/dash/dash-core.js"></script>
+<script>
+/*
+ * dash-core 的判据。用**浏览器**跑，因为这台机器上没有 node：
+ *
+ *     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
+ *       --headless=new --disable-gpu --dump-dom \
+ *       "file:///C:/Users/27014/phone-touchpad/tools/dash-test.html"
+ *
+ * 最后一行是 PASS 或 FAIL n。★ 没有输出（或停在 running）也等于失败 ——
+ * 那说明脚本自己崩了，而崩掉的判据和没跑的判据长得一模一样。
+ */
+(function () {
+  "use strict";
+  var C = window.DashCore;
+  var lines = [];
+  var pass = 0, fails = [];
+
+  function ok(name, cond, extra) {
+    if (cond) { pass++; lines.push("  ok   " + name); }
+    else { fails.push(name); lines.push("  FAIL " + name + (extra ? "  -> " + extra : "")); }
+  }
+  function eq(name, got, want) {
+    var g = JSON.stringify(got), w = JSON.stringify(want);
+    ok(name, g === w, "got " + g + " want " + w);
+  }
+  function ev(id, from, role, kind, text, ref) {
+    return { id: id, task: "t1", from: from, role: role, kind: kind, ref: ref || 0, text: text || "", at: id * 1000 };
+  }
+
+  lines.push("配对：派活 + 回话折成一张卡");
+  var rows = C.build([
+    ev(1, "hub", "编辑", "ask", "改短一点"),
+    ev(2, "cloud", "编辑", "answer", "改好了", 1)
+  ]);
+  eq("一行", rows.length, 1);
+  eq("是活卡", rows[0].type, "work");
+  eq("角色对得上", rows[0].role, "编辑");
+  eq("结果对得上", rows[0].answer, "改好了");
+  eq("起止时间对得上", rows[0].end - rows[0].start, 1000);
+
+  lines.push("代号：按岗位第一次出现的先后编 01、02、03");
+  var coded = C.build([
+    ev(1, "hub", "编辑", "ask", "改短"),
+    ev(2, "hub", "审稿人", "ask", "挑毛病"),
+    ev(3, "hub", "编辑", "ask", "再改一遍"),
+    ev(4, "hub", "估算师", "ask", "粗算"),
+    ev(5, "cloud", "编辑", "answer", "好了", 1)
+  ]);
+  var ci = coded[0].items;
+  eq("四份成一组", ci.length, 4);
+  eq("第一个出现的岗位是 VX-01", ci[0].code, "VX-01");
+  eq("第二个是 VX-02", ci[1].code, "VX-02");
+  eq("老岗位再派一次还是 VX-01", ci[2].code, "VX-01");
+  eq("新岗位接着往下编 VX-03", ci[3].code, "VX-03");
+  eq("第十个也不掉位（VX-10）", C.codeOf(9), "VX-10");
+  // 场上节点的顺序就是 rolesOf 的顺序，而 rolesOf 的顺序就是编号的顺序
+  // ⇒ 第 i 个节点上写的 `0(i+1)` 必然等于它在列表里的代号。这一条是「用代号」能成立的地基。
+  eq("场上节点顺序 = 代号顺序", C.rolesOf([
+    ev(1, "hub", "编辑", "ask", ""), ev(2, "hub", "审稿人", "ask", ""),
+    ev(4, "hub", "估算师", "ask", "")
+  ]), ["编辑", "审稿人", "估算师"]);
+  // 中间的「回话 / 记录」不占号 —— 号只按 ask 发。
+  var sep = C.build([
+    ev(1, "hub", "编辑", "ask", "改短"),
+    ev(2, "cloud", "编辑", "answer", "好了", 1),
+    ev(3, "hub", "", "note", "记一笔"),
+    ev(4, "hub", "审稿人", "ask", "挑毛病")
+  ]);
+  eq("回话不产生代号", sep[2].code, "VX-02");
+
+  lines.push("没回来的活");
+  var running = C.build([ev(1, "hub", "审稿人", "ask", "挑毛病")]);
+  eq("也留一张卡", running.length, 1);
+  eq("状态是在跑", C.statusOf(running[0], 1500), "在跑 · 0.5s");
+  ok("running() 认得出来", C.running(running, 1500) === true);
+  ok("回来了就不算 running", C.running(rows, 9000) === false);
+
+  lines.push("出错单独算");
+  var bad = C.build([
+    ev(1, "hub", "编辑", "ask", "改短"),
+    ev(3, "cloud", "编辑", "error", "超时", 1)
+  ]);
+  ok("标成失败", C.statusOf(bad[0], 5000).indexOf("失败") === 0);
+  ok("失败也算回来了（不再 running）", C.running(bad, 9000) === false);
+
+  lines.push("并行成组");
+  var fan = C.build([
+    ev(1, "hub", "编辑", "ask", "改短"),
+    ev(2, "hub", "审稿人", "ask", "挑毛病"),
+    ev(3, "hub", "估算师", "ask", "粗算"),
+    ev(4, "cloud", "编辑", "answer", "好了", 1),
+    ev(5, "cloud", "审稿人", "answer", "这里站不住", 2)
+  ]);
+  eq("折成一组", fan.length, 1);
+  eq("是组", fan[0].type, "group");
+  eq("三份", fan[0].items.length, 3);
+  ok("组头写回来几份", C.groupStat(fan[0].items, 9000).indexOf("回来 2") > 0);
+  ok("组头写还在跑几位", C.groupStat(fan[0].items, 9000).indexOf("1 位还在跑") > 0);
+
+  lines.push("中间插一行就断组");
+  var split = C.build([
+    ev(1, "hub", "编辑", "ask", "改短"),
+    ev(2, "hub", "", "note", "对账：…"),
+    ev(3, "hub", "审稿人", "ask", "挑毛病")
+  ]);
+  eq("三行：活 / 记录 / 活", split.length, 3);
+  eq("第一行不是组", split[0].type, "work");
+
+  lines.push("她说的话和中枢的记录都是一行");
+  var mix = C.build([
+    ev(1, "self", "", "note", "帮我改一下"),
+    ev(2, "hub", "", "route", "不派：带号码"),
+    ev(3, "hub", "", "tool", "open_app 记事本")
+  ]);
+  eq("三行", mix.length, 3);
+  eq("她说的在最上面", mix[0].from, "self");
+  eq("来源名字", C.lineOf(mix[2]).who, "中枢");
+  eq("类型名字", C.lineOf(mix[2]).kind, "动手");
+
+  lines.push("截断");
+  var long = C.clip("字".repeat(100), 10);
+  ok("截了并留下省略号", long === "字".repeat(10) + "…");
+  ok("换行压成空格", C.clip("第一行\n第二行", 20) === "第一行 第二行");
+
+  lines.push("行数上限");
+  var many = [];
+  for (var i = 1; i <= 200; i++) many.push(ev(i, "hub", "", "note", "第 " + i + " 条"));
+  var capped = C.build(many);
+  eq("最多 MAX_ROWS 行", capped.length, C.MAX_ROWS);
+  eq("留下的是最新的", capped[capped.length - 1].text, "第 200 条");
+
+  lines.push("接力：段与段之间那条记录");
+  var chain = C.build([
+    ev(1, "hub", "检索员", "ask", "先把原文找全"),
+    ev(2, "cloud", "检索员", "answer", "找到三段", 1),
+    ev(3, "hub", "接力", "note", "第 2/2 段 → 「编辑」，带着「检索员」回来的 58 字往下做"),
+    ev(4, "hub", "编辑", "ask", "照原文写成三百字")
+  ]);
+  eq("三行：卡 / 交接 / 卡", chain.length, 3);
+  ok("中间那条标成接力", chain[1].chain === true);
+  ok("两张卡没被折成一组", chain[0].type === "work" && chain[2].type === "work");
+  ok("第一段是链头，不缩进", chain[0].chained === false);
+  ok("第二段缩进，接到上一段", chain[2].chained === true);
+  ok("普通记录不会被误标成接力", C.build([ev(9, "hub", "对账", "note", "回来了 2 份")])[0].chain === false);
+
+  lines.push("角色顺序");
+  eq("按第一次出现的先后，去重", C.rolesOf([
+    ev(1, "hub", "编辑", "ask", "a"),
+    ev(2, "hub", "审稿人", "ask", "b"),
+    ev(3, "hub", "编辑", "ask", "c")
+  ]), ["编辑", "审稿人"]);
+  eq("回话不算新角色", C.rolesOf([ev(1, "cloud", "编辑", "answer", "a")]), []);
+  ok("最多八个（一次分工的上限）", C.rolesOf(["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬"].map(function (r, i) {
+    return ev(i + 1, "hub", r, "ask", "x");
+  })).length <= 8);
+
+  lines.push("读数");
+  var st = C.stats(fan);
+  eq("派活数 = 卡片数", st.asks, 3);
+  eq("回来数", st.answered, 2);
+  eq("在跑数", st.running, 1);
+  eq("失败数", st.failed, 0);
+  var st2 = C.stats(bad);
+  eq("失败单独计", st2.failed, 1);
+  ok("跨度是从最早一条算起", C.span([ev(1, "hub", "", "note", "a"), ev(5, "hub", "", "note", "b")], 6000) === 5000);
+
+  lines.push("曲线：只画真的花掉的秒数");
+  // ev() 里 at = id * 1000，所以两个号之差就是这一步花的毫秒数。
+  var cv = C.curve([
+    ev(1, "hub", "编辑", "ask", "改短"),
+    ev(3, "cloud", "编辑", "answer", "好了", 1),        // 1000 → 3000 = 2 秒
+    ev(4, "hub", "审稿人", "ask", "挑毛病"),
+    ev(9, "cloud", "审稿人", "error", "超时", 4),        // 4000 → 9000 = 5 秒
+    ev(10, "hub", "估算师", "ask", "还在跑")             // 没有回话
+  ]);
+  eq("只收配上对的两步", cv.length, 2);
+  eq("第一步 2 秒", cv[0].sec, 2);
+  eq("顺序按派活先后", cv[0].role, "编辑");
+  eq("出错那一步也在曲线上", cv[1].sec, 5);
+  ok("出错的点带 err 标", cv[1].err === true && cv[0].err === false);
+  // ★ 还在跑的**不许**进曲线：它没有终点，画上去等于替它宣布一个没发生的结果。
+  ok("还在跑的不进曲线", cv.length === 2);
+  eq("一条都没有时是空数组，不是 null", C.curve([]).length, 0);
+  eq("没岗位名的派活不进曲线", C.curve([ev(1, "hub", "", "ask", "x"), ev(2, "cloud", "", "answer", "y", 1)]).length, 0);
+
+  lines.push("token：只认服务端自报的数，没有就是 0");
+  // 带 tok 的事件（第 9 列）。老账本没有这一列时，解析出来必须是 0，不能是 NaN。
+  var tev = function (id, role, kind, text, ref, tok) {
+    return { id: id, task: "t2", from: "cloud", role: role, kind: kind,
+             ref: ref || 0, text: text || "", at: id * 1000, tok: tok || 0 };
+  };
+  var tk = [
+    tev(1, "编辑", "ask", "改短", 0, 0),          // 派活那条没有账
+    tev(2, "编辑", "answer", "好了", 1, 1200),
+    tev(3, "审稿人", "ask", "挑毛病", 0, 0),
+    tev(4, "审稿人", "error", "超时", 3, 300)
+  ];
+  var byr = C.byRole(tk);
+  eq("按岗位分账：编辑的 token", byr["编辑"].tok, 1200);
+  eq("出错那一次也算 token", byr["审稿人"].tok, 300);
+  eq("派活不计 token", byr["审稿人"].ask, 1);
+  eq("回来次数含出错", byr["审稿人"].back, 1);
+  eq("出错另外计", byr["审稿人"].err, 1);
+  eq("全屏合计", C.tokens(tk), 1500);
+  eq("没有账时是 0 不是 NaN", C.tokens([tev(1, "编辑", "answer", "x", 0, undefined)]), 0);
+  eq("空流合计 0", C.tokens([]), 0);
+  eq("曲线上也带同一步的 token", C.curve(tk)[0].tok, 1200);
+  eq("没有 token 列的老事件按 0 算", C.curve([{ id: 1, task: "t3", from: "hub", role: "编辑", kind: "ask", ref: 0, text: "", at: 1000 }, { id: 2, task: "t3", from: "cloud", role: "编辑", kind: "answer", ref: 1, text: "x", at: 2000 }])[0].tok, 0);
+
+  lines.push("秒数");
+  eq("不到一秒也写一位小数", C.fmtSec(400), "0.4s");
+  eq("十秒以上取整", C.fmtSec(12400), "12s");
+
+  lines.push("");
+  lines.push(fails.length ? ("FAIL " + fails.length + " / 共 " + (pass + fails.length)) : ("PASS " + pass + "/" + pass));
+  document.getElementById("out").textContent = lines.join("\n");
+})();
+</script>
+</body>
+</html>

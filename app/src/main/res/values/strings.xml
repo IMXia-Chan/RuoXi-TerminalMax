@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">若息·Terminal Max</string>
+    <!-- ★ 2026-10-04:只有一个 App,叫 ConMarn。
+         原来这里是「若息·Terminal Max」,桌面上还有第二个图标叫 ConMarn ——
+         用户拍板合成一个,触控板那套降级成「房间里点一下电脑」才进去的地方。 -->
+    <string name="app_name">ConMarn</string>
     <string name="status_initial">输入电脑 IP 后点「连接」</string>
     <string name="ip_hint">电脑 IP(如 192.168.1.5)</string>
     <string name="connect">连接</string>
@@ -9,9 +12,29 @@
     <string name="sensitivity">灵敏度</string>
     <string name="mode_screen">切换:屏幕</string>
     <string name="mode_touchpad">切换:触控板</string>
-    <string name="keyboard">键盘</string>
+    <!-- ★ 2026-10-06 这条一度被删(判定成「零引用的孤儿」),同一天又装回来了 ——
+         它当时确实没有调用方,但**那是因为图标和条子一起被删了**,不是因为这个名字没用。
+         判据是「有没有调用方」,不是「看起来还有没有用」:名字是跟着图标走的,
+         图标回来,名字就得回来。经过写在下面 `keyboard` 那段。 -->
     <string name="camera">摄像头</string>
     <string name="mic">麦克风</string>
+    <!-- 「键盘」:控制电脑页右下角那颗键盘图标的 contentDescription —— 点它弹一个输入框,
+         打完点「发送」直接进电脑当前光标处。
+         ★ 2026-10-06 它跟着输入条一起删过一次(判定成零引用孤儿),当天又装回来了:
+         条子确实该删,但**入口得留** —— 删完之后这一页再没有办法自己往电脑打字了。
+         判据是「有没有调用方」,不是「看起来还有没有用」。 -->
+    <string name="keyboard">键盘</string>
+    <!-- 「退格」:紧挨着上面那颗「键盘」图标右边那颗 ← 按钮的 contentDescription。
+         按一下 = 让电脑真的按一次退格键(删一个字符),不经过任何输入框。
+         ★ 它和「键盘」是两件事:键盘负责打字,它负责删。 -->
+    <string name="kb_back">退格</string>
+    <!-- ★★ 2026-10-08:「回车」:挨着那颗 ← 右边再一颗按钮的 contentDescription。
+         按一下 = 让电脑真的按一次回车键(虚键码 13),不经过任何输入框。
+         ★ 它和「退格」是同一条路、同一个理由:发的是**按键**,不是一段文字。
+         ★ **显示的字就是「回车」这两个字,不是 ↵ 那个符号** —— 这台机器的
+           `/system/fonts/NotoSansSymbols-*` 是**精简过的子集**(名字里就写着 Subsetted),
+           挑一个很可能没被保住的符号,结果是画一个豆腐块;而中文一定有字。 -->
+    <string name="kb_enter">回车</string>
     <string name="switch_camera">切换</string>
     <string name="flip_camera">翻转</string>
     <string name="flip_camera_on">翻转·开</string>
@@ -21,4 +44,15 @@
     <string name="right_click">右键</string>
     <string name="wheel_up">滚轮▲</string>
     <string name="wheel_down">滚轮▼</string>
+
+    <!-- ★★ 2026-10-06:这里原来是「直接打到电脑上」那条输入条的两条文案 ——
+         `type_to_pc_hint`(「直接打到电脑上…」,输入框的灰字提示)和
+         `type_to_pc_close`(「收起」,右侧那颗箭头的 contentDescription)。
+         条子整块删了,文案跟着删。
+         ★ 用户原话:「不要打到电脑这个提示,因为**我的输入法可以直接打到直接发送**」。 -->
+
+    <!-- 原来这里还有一条 `conmarn_launcher_name` = ConMarn,给她的桌面图标单独用,
+         那时的理由是「桌面上要看见她的名字,不是超级终端」。
+         现在 App 本身就叫 ConMarn 了,两条一模一样 —— 删掉重复的那条,
+         桌面图标直接用 `app_name`(同一个东西不写两遍,这是本项目吃过一次亏的老规矩)。 -->
 </resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「电脑」那只手的图标:一台显示器。
+
+  ★ 为什么要新画一个:`drawable/` 里原来没有一台电脑 —— 最近的近似是 `ic_quick`
+    (四宫格,那是「快捷启动」的意思)。AI 助手那一层列的是**她的手**,
+    每一行得一眼看出那是台什么东西;拿四宫格代表电脑,等于没画。
+
+  ★ 填充色是纯黑,颜色由布局里的 `android:tint` + `tintMode="src_in"` 决定
+    (照 ic_ai / ic_swap / ic_quick 那一套),所以别在这里写颜色。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M4,3h16a1,1 0 0 1 1,1v11a1,1 0 0 1 -1,1H4a1,1 0 0 1 -1,-1V4a1,1 0 0 1 1,-1zM5,5v9h14V5zM11,17h2v2.5h-2zM8,19.5h8a1,1 0 0 1 0,2H8a1,1 0 0 1 0,-2z" />
+</vector>

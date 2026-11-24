@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!--
+  她的房间(web 层)。
+
+  这一层故意什么都没有:没有一个按钮、一行文字、一个框。
+  她就站在画面里 —— 这是全部。所有界面元素(说话时的字幕、开关)
+  都画在 Android 这一层的 Compose/View 上,盖在 canvas 之上,
+  这样它们能有原生的字体和触摸手感,也不会被 WebGL 的重绘拖累。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>ConMarn</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #160f13;
+    /* 她全屏站着,别让浏览器给她加滚动条或者长按选中蓝块 */
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #her-canvas {
+    display: block; width: 100%; height: 100%;
+    /* WebGL 在 WebView 里默认是被当作图片按最近邻缩放的,关掉它 */
+    image-rendering: auto;
+    /* ★ 必须:房间里的东西要点得中。
+       WebView 默认把触摸当滚动手势,会在我们收到 pointerup 之前先把它吞掉 ——
+       症状是「点了没反应」,而且它和「点空了」长得一模一样,极难查。
+       touch-action:none 把这段手势处理关掉,pointer 事件才会原样送到 canvas。
+       这里本来就没有可滚动的东西(上面 overflow:hidden),关掉零损失。 */
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+  <canvas id="her-canvas"></canvas>
+  <script src="her.bundle.js"></script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>ConMarn</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="rail">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>
+        <span class="brand-name">ConMarn</span>
+        <span class="brand-sub">电脑端</span>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="主导航">
+      <button type="button" data-page="overview" class="on">概览</button>
+      <button type="button" data-page="pair">配对</button>
+      <button type="button" data-page="media">媒体</button>
+      <button type="button" data-page="files">文件</button>
+      <button type="button" data-page="log">日志</button>
+      <button type="button" data-page="settings">设置</button>
+    </nav>
+
+    <div class="rail-foot">
+      <span class="dot" id="railDot" aria-hidden="true"></span>
+      <span id="railText">正在读取服务状态</span>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <h1 id="pageTitle">概览</h1>
+      <div class="chips">
+        <span class="chip" id="chipSvc"><i aria-hidden="true"></i><span>服务</span></span>
+        <span class="chip" id="chipPhone"><i aria-hidden="true"></i><span>手机</span></span>
+        <span class="chip" id="chipPair"><i aria-hidden="true"></i><span>配对</span></span>
+        <span class="chip warn hidden" id="chipDemo"><i aria-hidden="true"></i><span>演示模式</span></span>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="banner" id="banner">
+        <span class="grow">电脑端服务未运行,以下内容暂不可用。</span>
+        <button type="button" class="btn" id="bannerStart">启动服务</button>
+      </div>
+
+      <!-- 概览 -->
+      <section class="page on" id="page-overview">
+        <div class="grid grid-3">
+          <div class="card stat">
+            <span class="stat-label">服务运行时长</span>
+            <span class="stat-value" id="ovUptime">—</span>
+            <span class="stat-sub" id="ovBridge"></span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">手机连接</span>
+            <span class="stat-value" id="ovPhone">—</span>
+            <span class="stat-sub" id="ovPhoneSub"></span>
+          </div>
+          <div class="card stat">
+            <span class="stat-label">配对状态</span>
+            <span class="stat-value" id="ovPair">—</span>
+            <span class="stat-sub" id="ovPairSub"></span>
+          </div>
+        </div>
+
+        <div class="grid grid-2 mt">
+          <div class="card">
+            <h2>连接信息</h2>
+            <dl class="kv">
+              <dt>局域网地址</dt><dd id="ovAddr">—</dd>
+              <dt>控制端口</dt><dd id="ovPort">—</dd>
+              <dt>最近连接</dt><dd id="ovLastConn">—</dd>
+              <dt>中转目录</dt><dd class="path" id="ovDir">—</dd>
+              <dt>权限级别</dt><dd id="ovElev">—</dd>
+            </dl>
+          </div>
+
+          <div class="card">
+            <h2>当前配对码</h2>
+            <div class="pin" id="ovPin">—</div>
+            <div class="meter"><i id="ovPinBar"></i></div>
+            <p class="hint" id="ovPinHint"></p>
+
+            <h2 class="mt">最近事件</h2>
+            <ul class="events" id="ovEvents"></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 配对 -->
+      <section class="page" id="page-pair">
+        <div class="card" id="pairGate">
+          <h2 id="pairGateTitle">输入登录 PIN</h2>
+          <div class="row">
+            <input class="input" id="pairPin" inputmode="numeric" autocomplete="off"
+                   maxlength="6" placeholder="000000" aria-label="登录 PIN">
+            <button type="button" class="btn" id="pairUnlockBtn">解锁</button>
+            <button type="button" class="btn hidden" id="pairSetBtn">设置登录 PIN</button>
+          </div>
+          <p class="hint" id="pairGateMsg"></p>
+        </div>
+
+        <div class="card hidden" id="pairBody">
+          <h2>配对二维码</h2>
+          <div class="qr-wrap">
+            <img class="qr hidden" id="pairQr" alt="配对二维码">
+            <div class="qr-blank" id="pairQrEmpty">当前没有待处理的配对请求</div>
+            <div class="qr-side">
+              <div class="qr-label" id="pairCodeLabel">一次性配对码</div>
+              <div class="code" id="pairCode">—</div>
+              <p class="hint" id="pairQrHint">二维码每次配对只能使用一次。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt">
+          <h2>配对管理</h2>
+          <div class="setting">
+            <div>
+              <div class="setting-t">解除配对</div>
+              <div class="setting-d" id="pairForgetState">清除本机保存的配对密钥。</div>
+            </div>
+            <button type="button" class="btn danger" id="pairForgetBtn">解除配对</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 媒体 -->
+      <section class="page" id="page-media">
+        <div class="card">
+          <h2>摄像头画面</h2>
+          <div class="frame" id="camFrameBox">
+            <img id="camFrame" alt="摄像头画面">
+            <div class="frame-empty" id="camEmpty">电脑端未开启摄像头</div>
+          </div>
+
+          <div class="row between mt">
+            <div class="switches">
+              <span class="switch-row">摄像头
+                <button type="button" class="switch" id="swCam" role="switch" aria-checked="false" aria-label="摄像头开关"></button>
+              </span>
+              <span class="switch-row">麦克风
+                <button type="button" class="switch" id="swMic" role="switch" aria-checked="false" aria-label="麦克风开关"></button>
+              </span>
+            </div>
+            <div class="level">
+              <span class="level-label">音量</span>
+              <div class="meter level-meter"><i id="levelBar"></i></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 文件 -->
+      <section class="page" id="page-files">
+        <div class="card">
+          <div class="row between head-row">
+            <h2>本地中转目录</h2>
+            <div class="row">
+              <button type="button" class="btn ghost" id="localUp">上一级</button>
+              <button type="button" class="btn ghost" id="localRefresh">刷新</button>
+              <button type="button" class="btn ghost" id="localOpen">打开目录</button>
+              <button type="button" class="btn" id="localUploadBtn">上传</button>
+              <input type="file" id="localFile" multiple hidden>
+            </div>
+          </div>
+          <div class="path crumb" id="localPath">/</div>
+          <ul class="list" id="localList"></ul>
+        </div>
+
+        <div class="card mt">
+          <div class="row between head-row">
+            <h2>手机中转目录</h2>
+            <div class="row">
+              <button type="button" class="btn ghost" id="phoneRefresh">刷新</button>
+            </div>
+          </div>
+          <ul class="list" id="phoneList"></ul>
+        </div>
+      </section>
+
+      <!-- 日志 -->
+      <section class="page" id="page-log">
+        <div class="card">
+          <div class="row between head-row">
+            <h2>运行日志</h2>
+            <div class="row">
+              <span class="switch-row">自动刷新
+                <button type="button" class="switch on" id="swLog" role="switch" aria-checked="true" aria-label="日志自动刷新"></button>
+              </span>
+              <button type="button" class="btn ghost" id="logRefresh">刷新</button>
+            </div>
+          </div>
+          <pre class="log" id="logBox" tabindex="0"></pre>
+        </div>
+      </section>
+
+      <!-- 设置 -->
+      <section class="page" id="page-settings">
+        <div class="card">
+          <h2>系统</h2>
+
+          <div class="setting">
+            <div>
+              <div class="setting-t">演示模式</div>
+              <div class="setting-d" id="demoState">关闭</div>
+            </div>
+            <button type="button" class="switch" id="swDemo" role="switch" aria-checked="false" aria-label="演示模式"></button>
+          </div>
+
+          <div class="setting">
+            <div>
+              <div class="setting-t">开机自启</div>
+              <div class="setting-d" id="autoState">正在读取</div>
+            </div>
+            <button type="button" class="switch" id="swAuto" role="switch" aria-checked="false" aria-label="开机自启"></button>
+          </div>
+
+          <div class="setting">
+            <div>
+              <div class="setting-t">电脑端服务</div>
+              <div class="setting-d" id="svcState">正在读取</div>
+            </div>
+            <button type="button" class="btn" id="svcStart">启动服务</button>
+          </div>
+
+          <div class="setting">
+            <div>
+              <div class="setting-t">中转目录</div>
+              <div class="setting-d path" id="setDir">—</div>
+            </div>
+            <button type="button" class="btn ghost" id="setOpenDir">打开</button>
+          </div>
+
+          <div class="setting">
+            <div>
+              <div class="setting-t">版本</div>
+              <div class="setting-d" id="setVersion">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt">
+          <h2>说明</h2>
+
+          <p class="note"><b>演示模式。</b>开启后界面显示内置的示例数据,不读取电脑端服务的状态,
+            因此画面中不会出现真实的局域网地址、目录路径、文件名与配对码;开关、传输与配对等操作
+            只在界面内改变状态,不会实际执行。关闭后立即恢复真实数据。该开关只影响本程序的显示,
+            不影响后台服务。</p>
+
+          <p class="note"><b>与电脑端服务的关系。</b>本程序只是界面,不包含配对、加密与文件协议;
+            这些功能由后台运行的电脑端服务提供。关闭本程序不影响手机连接,服务继续运行。</p>
+
+          <p class="note"><b>开机自启。</b>开关控制的是电脑端服务的自启项,不是本程序。
+            修改只影响下次登录;当前正在运行的服务不受影响。</p>
+
+          <p class="note"><b>配对。</b>电脑端服务的配对信息由登录 PIN 保护,输入登录 PIN 后才会显示配对二维码。
+            二维码与配对码都是一次性的。解除配对会清除本机保存的配对密钥,手机需要重新配对。</p>
+
+          <p class="note"><b>媒体。</b>摄像头与麦克风的开关与手机上媒体面板的开关发送同一条指令;
+            电脑端未连接手机时,指令不会送达。</p>
+
+          <p class="note"><b>文件。</b>本地中转目录与手机中转目录互传文件,取回与发送均由电脑端服务执行。
+            手机侧列表需要手机处于连接状态并打开文件面板。</p>
+
+          <p class="note"><b>安全。</b>本程序的界面服务只监听本机回环地址,局域网内的其他设备无法访问。</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

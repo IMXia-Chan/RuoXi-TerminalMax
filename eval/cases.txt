@@ -1,0 +1,121 @@
+# 若息「脑」的 tool-calling 评测集。
+#
+# 格式(用 | 分三列):
+#     用户指令 | 期望的工具(`/` 分隔多个可接受,写 `-` = 不该调任何工具) | 参数里必须出现的子串(留空 = 不检查)
+#
+# ⚠️ 第三列是**字面子串**比对,`/` 只在第二列有意义。往第三列写 `a/b` 会变成
+#    「参数里得出现字符串 a/b」这种永远满足不了的条件 —— 踩过一次(别放音乐了)。
+#
+# 怎么用:改完 AiAgent.kt 里的 SYSTEM_PROMPT / TOOL_SCHEMA 之后跑一遍 run_eval.py,
+# 只看「命中率」和「打偏了哪些」,别凭手感判断改好没改好。
+#
+# 写用例的原则:
+#   - 把 SYSTEM_PROMPT 里那 5 条 few-shot 原样抄进来当基线(它们必须过,不过说明提示词被改坏了);
+#   - 其余尽量用**没在提示词里出现过**的说法(换动词、换语序、带点口语),
+#     否则测的只是「模型会不会背例子」。
+#   - 模棱两可的(「停一下音乐」既像暂停又像停止)两种都算过,别把合理答案判成错。
+
+# ---- open_app:该开应用 ----
+打开记事本 | open_app | 记事本
+打开微信 | open_app | 微信
+帮我开一下计算器 | open_app | 计算器
+启动 Chrome | open_app | Chrome
+把画图打开 | open_app | 画图
+开个文件资源管理器 | open_app | 文件资源管理器
+我想看视频,打开哔哩哔哩 | open_app | 哔哩哔哩
+
+# ---- focus_window:窗口已经开着,该切过去 ----
+切到 Chrome | focus_window | Chrome
+切回微信 | focus_window | 微信
+把记事本窗口调到最前面 | focus_window | 记事本
+显示一下终端窗口 | focus_window | 终端
+回到刚才那个网页 | focus_window/open_app | 浏览器
+
+# ---- media:控制播放 ----
+下一首 | media | next
+暂停 | media | play_pause
+继续播放 | media | play_pause
+上一首 | media | prev
+静音 | media | mute
+声音大一点 | media | volume_up
+音量小一点 | media | volume_down
+别放音乐了 | media | stop
+
+# ---- get_state:先看现状 ----
+现在开着什么 | get_state |
+电脑上现在有哪些窗口 | get_state |
+我现在在哪个窗口 | get_state |
+看看电脑现在什么样 | get_state |
+
+# ---- 点击:没有结构化工具可用,只能点 ----
+#
+# 2026-10-02 改:点的首选从 click_element 换成了 click_ui(按名字点,毫秒级、0 像素误差;
+# 视觉那条要 215 秒且精度只有 32 像素)。两者都算过 —— 但**必须调其中之一**,
+# 只回一句「你自己点吧」算错,因为那正是小模型最常犯的错。
+# ⚠️ 这行注释以前写着「click_ui 找不到时会自动退回视觉,模型不用管」—— **已经不对了**。
+# 现在 click_ui 失败走的是 resolveMiss(滚窗口 → 用窗口自带的搜索 → 问云端老师 → 看图),
+# 而这条链**只在模型发的 click_ui 上跑**:规则快通道发的带 strict,一失败就交回模型
+# (见 FastPath 类注释和 AiAgent.dispatch —— 规则切错的代价必须便宜)。
+点一下发送按钮 | click_ui/click_element | 发送
+点开始菜单 | click_ui/click_element | 开始
+帮我点登录 | click_ui/click_element | 登录
+点右上角那个关闭 | click_ui/click_element | 关闭
+点一下搜索框 | click_ui/click_element | 搜索
+按下文件菜单 | click_ui/click_element | 文件
+点一下最小化 | click_ui/click_element | 最小化
+# 下面两条盯住「量词」和「位置词」的剥离:名字里带着「按钮」去找必然落空。
+点一下确定按钮 | click_ui/click_element | 确定
+点右下角那个取消 | click_ui/click_element | 取消
+
+# ---- 打字 / 快捷键 ----
+在输入框里打 hello world | type | hello world
+往输入框输入你好 | type | 你好
+回车确认 | hotkey | enter
+按 ctrl+f 查找 | hotkey | ctrl+f
+
+# ---- 闲聊:不该调工具 ----
+你好 | - |
+谢谢 | - |
+再见 | - |
+
+# ---- 复合句:第一步该做什么 ----
+打开记事本然后写个标题 | open_app | 记事本
+打开微信给张三发消息 | open_app | 微信
+
+# ---- 通用入口:手机自己身上的事(2026-10-04,S3) ----
+#
+# 这一组盯的是新加的那条阶梯。两个方向都要钉:
+#
+#   ① **「手机上的事」不许调成电脑的工具**。最毒的是「打开微信」——
+#      电脑那只手上也有 open_app,调它会**真的开一个电脑上的微信**,
+#      不报任何错,用户看到的是「她在另一台机器上忙活」。这类错静默。
+#   ② **电脑上的事不许被这条阶梯传染**。加了 list_hands 之后,
+#      要是连「打开记事本」都先绕一圈菜单,那每一件电脑上的事都白多一轮。
+#
+# ★ 两列都写 list_hands/use_hand:阶梯本来就是两轮的(先看菜单,再动手),
+#   而评测只发一轮。先调 list_hands 是完全正确的第一步,别把它判成错。
+# ★ **第三列一律留空**(2026-10-04 真机实测改的)。第三列是**子串比对**,而工具名
+#   只有第二轮(use_hand)的参数里才可能出现 —— 第一轮 list_hands 的参数是空的,
+#   于是这几条**从设计上就不可能过**。我先前真把工具名填上了,跑出来
+#   「命中 2/10 = 20%」:八条打偏有七条是**量具坏了**,不是她做错了。
+#   第二轮怎么验:**不靠这个量具,靠真机端到端** —— 「设一个 7 点的闹钟」,看系统闹钟
+#   真起来没有,那才是判据。离线比对在这里只会更脆:use_hand 的 args 是一层嵌套
+#   JSON 字符串,再叠一层转义,拿任何参数值做子串比对都是在赌。
+#   第二轮各自该出现的工具(真机验的时候对着看):
+#     六点半闹钟→set_alarm  手机相机→open_phone_app  天气→web_search
+#     bing 网址→open_url    剪贴板→copy            震动→vibrate     10086→dial
+# ⚠️ 提示词里那两条例子(7 点闹钟 / 手机上开微信)不要抄进来 —— 那测的是背书。
+定个六点半的闹钟 | list_hands/use_hand |
+手机上打开相机 | list_hands/use_hand |
+上网查一下明天的天气 | list_hands/use_hand |
+打开 www.bing.com | list_hands/use_hand |
+把「会议纪要」复制到剪贴板 | list_hands/use_hand |
+手机震一下 | list_hands/use_hand |
+拨个 10086 | list_hands/use_hand |
+# 纯自述:这一步不该动手,只要菜单。
+你现在能控制哪些设备 | list_hands |
+
+# ---- 阶梯不许传染电脑 ----
+# 「电脑上」三个字是关键词:同样的动作在手机上是另一回事。
+在电脑上打开画图 | open_app | 画图
+电脑上那个记事本窗口切到前面 | focus_window | 记事本

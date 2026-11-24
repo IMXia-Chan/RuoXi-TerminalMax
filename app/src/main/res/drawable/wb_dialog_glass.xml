@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  超级工作台：弹窗的**深色透明磨砂玻璃**外壳。
+
+  ★ 2026-11-06 他截图点名：「把这种的，灰色的，改成透明磨砂玻璃」——
+    原来那是系统默认的 Material 弹窗，一块不透明的深灰板子，压在这一屏上像贴了块铁皮。
+
+  ★ 为什么不用 [dialog_glass]（配对码那块白玻璃）：这一屏底子是黑的，
+    整块七成白弹出来会是一下强闪；配对码那块压在她的房间里，底色本来就亮。
+    玻璃的配方一样（本体 + 顶上高光 + 一道白棱），只是**颜色反过来**。
+
+  ⚠️ 同样是**画出来的**磨砂，不是真背景模糊 —— 这台机不支持背景模糊。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ① 本体：上亮下暗。压到七成左右的黑，字才读得清；再淡就只剩一层灰雾 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#E60E171C"
+                android:centerColor="#D90A1015"
+                android:endColor="#CC05080A" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+    <!-- ② 顶上的高光：亮到 18% 就淡没了。玻璃的厚度全在这条上 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:centerY="0.18"
+                android:startColor="#2EFFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+
+    <!-- ③ 棱：1dp 白描边，只有这一道 -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="1dp" android:color="#3DFFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+</layer-list>

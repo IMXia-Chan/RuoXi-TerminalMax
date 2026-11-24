@@ -17,6 +17,49 @@
         <item name="android:stateListAnimator">@null</item>
     </style>
 
+    <!--
+      「输入配对码」那种弹窗的玻璃外壳(2026-10-08 他点名要的透明磨砂玻璃 + 圆角)。
+
+      ★ 三样东西必须**一起**改,少一样就读不清 —— 这是换背景最容易踩的坑:
+        · 背景  —— 玻璃画在 [dialog_glass] 里;
+        · 字色  —— 玻璃是**白的**,而默认主题的弹窗字是**白的**(整个 App 是深色主题),
+                  不换字色就是白底白字。这里压成深板岩色,和呼出面板同一套(#263238 系);
+        · 输入框 —— 见 MainActivity:玻璃上再放一个**深色**小圆角框,里面的字才是浅色。
+
+      ★ 背景一换,原来那层 9-patch 自带的内衬也没了 ⇒ 内容会贴着圆角,
+        内衬由代码补(decorView 加一圈 padding),不写在这里 —— 主题里没这个属性。
+
+      ★ 父主题挑的是**平台那个 Material 弹窗主题**,不是 App 自己的 ——
+        弹窗要的是 windowIsFloating 那一套窗口属性,App 主题上没有。
+    -->
+    <style name="Theme.Touchpad.GlassDialog" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_glass</item>
+        <item name="android:textColorPrimary">@color/glass_text</item>
+        <item name="android:textColorSecondary">#E6263238</item>
+        <item name="android:colorAccent">@color/ic_conmarn_bg</item>
+        <item name="android:windowTitleStyle">@style/TextAppearance.Touchpad.GlassDialogTitle</item>
+    </style>
+
+    <!--
+      超级工作台的弹窗:**深色**透明磨砂玻璃(2026-11-06 他截图点名要的)。
+
+      ★ 和上面那块白玻璃是**两块不同的东西**,别合:白的那块压在她的房间里(底色亮),
+        这块压在工作台上(底色黑)。同一份配方、颜色反过来 —— 白玻璃弹在黑屏上是一下强闪。
+      ★ 字色不用改:整个 App 是深色主题,弹窗的字本来就是亮的,
+        换了背景之后仍然读得清(这正是「白玻璃必须换字色」的反面)。
+    -->
+    <style name="Theme.Touchpad.GlassDialogDark" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/wb_dialog_glass</item>
+    </style>
+
+    <!-- 玻璃上的标题:也压成深板岩色。只给这两样,其余走默认。
+         ★ parent="" 是**故意**写的:名字里有两个点,aapt2 会**默认去找** TextAppearance.Touchpad
+           —— 而那个样式不存在,构建当场红(2026-10-08 真踩了)。空 parent 是切断这条隐式继承。 -->
+    <style name="TextAppearance.Touchpad.GlassDialogTitle" parent="">
+        <item name="android:textColor">@color/glass_text</item>
+        <item name="android:textSize">18sp</item>
+    </style>
+
     <!-- 开屏动画:纯黑底,首帧前不闪出任何栏/色。
          windowSplashScreen* 是 Android 12+ 系统开屏(首帧前那个带图标的画面),这里把背景压成
          纯黑、图标换成全透明,省得进 app 时把桌面图标闪出来。API<31 的机型不认识这些属性,

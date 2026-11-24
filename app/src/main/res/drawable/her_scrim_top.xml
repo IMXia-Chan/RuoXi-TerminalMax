@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 顶栏的压暗层:她的头顶上会飘过名字和开关,没有这层压暗,
+     浅色头发上的白字会看不见。渐变而不是纯色 —— 硬边会像贴了条胶布。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#B3000000"
+        android:centerColor="#66000000"
+        android:endColor="#00000000"
+        android:type="linear" />
+</shape>

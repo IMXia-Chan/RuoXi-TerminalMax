@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  发送键:**白色实心圆 + 一个箭头**,照用户 2026-10-04 晚给的那张截图。
+
+  ★ 在这之前它是**一个写着「说」字的粉色方块**。改的原因是那句话:
+    「**发送键也和我图里一样,一个小箭头代表发送**」。
+    那是个好改法 —— 一个词占掉的位置,一个符号就够了,而且箭头是**通用**的:
+    换个语言、换个说法,箭头还是「发出去」。字会过时,箭头不会。
+
+  ★ 三态,和项目里其他键同一套规矩(见 btn_glass):
+    · 按下 → 更实(手指知道按中了)
+    · 禁用 → 淡下去(她正忙的时候按不动,而**看得见**按不动)
+    · 常态 → 亮白
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <shape android:shape="oval">
+            <solid android:color="#59FFFFFF" />
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#F2FFFFFF" />
+        </shape>
+    </item>
+</selector>

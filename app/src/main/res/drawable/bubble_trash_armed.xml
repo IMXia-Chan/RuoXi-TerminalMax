@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  拖她的时候屏幕底下那个「扔」的落点 · **热区态(红光晕亮着)**。
+
+  用户 2026-10-04 原话:「到旁边会有**红色光晕**,**直到红色光晕出来,松开就能退出悬浮窗**」。
+  2026-10-05 他补了一句把形状钉死:
+     > 「垃圾桶,等等,**就红色光晕就行**」
+
+  ## 所以这一版**只剩光**
+
+  上一版里面还有一个**实心红圆 + 一圈更亮的描边**(那是给「垃圾桶」那个图标当底的),
+  现在图标没了,那个实心圆就成了一张贴在光里的红纸 —— 它有一个硬边,
+  而硬边正是「图标」和「光」的分界线。
+
+  这一版只有两层,都是渐变,**一处硬边都没有**,所以它读起来是「这团光**亮起来了**」,
+  而不是「屏幕上多了一个红色的东西」。
+
+  ## ★ 判据是「它亮过没有」,不是「松手时手指离得多近」
+
+  [ConMarnBubble] 那边置的是一个**闩**:手指一进热区就 `trashArmed = true`,
+  松手时只看这个闩。做成「松手时现算距离」的话,快速一甩会因为惯性判定而误关 ——
+  而 [`dropToTrash`] 是**退不回来**的那一步。他的重音也在这三个字上:「**直到**…出来」。
+
+  ## 为什么是红
+
+  和房间里上滑取消那块玻璃([her_glass_pill_cancel])**同一个色号**(`#E53E3E` 系)——
+  同一个意思(「松手就没了」)在同一个屏幕上用两种红,是没有道理的。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- ① 外层:散得更远的那圈光。它给的是「热区有多大」这个信息。 -->
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="50%p"
+                android:startColor="#8CE53E3E"
+                android:endColor="#00E53E3E" />
+        </shape>
+    </item>
+    <!-- ② 内层:更小更浓的一团。没有硬边,只有一个「更亮」的中心,
+             这是光晕和贴纸在观感上的唯一区别。 -->
+    <item
+        android:left="16dp"
+        android:top="16dp"
+        android:right="16dp"
+        android:bottom="16dp">
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="50%p"
+                android:startColor="#E6FF5252"
+                android:endColor="#00E53E3E" />
+        </shape>
+    </item>
+</layer-list>

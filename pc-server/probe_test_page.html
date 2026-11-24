@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>ruoxi-probe-target</title>
+<!--
+  「点电脑的输入框 → 手机弹输入法」那只眼睛的**靶子**。
+
+  为什么要有个固定靶子:2026-10-04 那次量错,根子是拿**用户自己的浏览器**
+  当靶子 —— 窗口会变、页会关、坐标会失效,而且没法重跑。三次"实测结论"
+  里有两次是这么错的。所以钉一个自己的页面,每次都从同一个起点开跑。
+
+  ★ 纵向顺序是**故意**排的,测试靠"从上到下的 I 型条带顺序"断言,
+    不靠绝对像素 —— 缩放/DPI 变了也不会误报。
+
+  ★ `#text` 那一段是**故意**留的:浏览器里可选中的正文,指针**也是 I 型**,
+    所以点它会假阳性。这是已知代价,不是 bug —— 钉在这里,免得以后
+    有人「修」掉它却不知道自己在动什么。
+-->
+<style>
+  html, body { margin: 0; padding: 0; background: #fff; font: 16px/1.4 sans-serif; }
+  .box { position: absolute; box-sizing: border-box; }
+  #plain { left: 20px; top: 20px;  width: 420px; height: 60px;  background: #eeeeee; }
+  #input { left: 20px; top: 120px; width: 420px; height: 40px;  }
+  #area  { left: 20px; top: 200px; width: 420px; height: 140px; }
+  #text  { left: 20px; top: 380px; width: 420px; height: 80px;  }
+  #link  { left: 20px; top: 500px; width: 220px; height: 30px;  }
+</style>
+</head>
+<body>
+  <div class="box" id="plain">①不能打字的一块空白</div>
+  <input class="box" id="input" placeholder="②单行输入框">
+  <textarea class="box" id="area">③多行文本域</textarea>
+  <div class="box" id="text">④可选中的正文(GUI 上指针也是 I 型,这里会假阳性 —— 已知代价)</div>
+  <a class="box" id="link" href="#">⑤一个链接</a>
+</body>
+</html>

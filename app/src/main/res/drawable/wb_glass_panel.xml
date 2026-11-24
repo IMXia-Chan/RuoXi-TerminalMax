@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  超级工作台：底下那一条的底 —— **透明磨砂玻璃**。
+
+  ★ 2026-11-06 他点名：「那个UI也很丑，那个所有的灰色工厂面板一样的，全部改成
+    透明磨砂玻璃」。原来那块是「深绿渐变 + 绿描边」，压在黑底上就是一条灰带子。
+
+  配方照 [dialog_glass] / [her_glass_pill] 那一套（他已经认过的样子），
+  只换了**颜色深浅**：那两块是白玻璃压深色字，这一块是**浅玻璃压深色底**，
+  所以本体只给一点点白、字仍是亮的。
+
+  三条老规矩（那儿写着理由，别在这儿重犯）：
+    · 玻璃是**两层往上叠**（本体 + 高光），少了高光就是一块没有厚度的塑料片；
+    · 棱**只有一道**；
+    · 不加任何会动、会闪的东西。
+
+  ⚠️ 这台机器 `ro.surface_flinger.supports_background_blur` 是空的 ——
+     **没有真的背景模糊**，磨砂感只来自半透明 + 高光 + 棱。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- ① 本体：上亮下暗，整块约一成的白 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#1FFFFFFF"
+                android:centerColor="#14FFFFFF"
+                android:endColor="#0AFFFFFF" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+
+    <!-- ② 顶上的高光：亮到 16% 那一点就淡没了，玻璃的厚度全在这条上 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:centerY="0.16"
+                android:startColor="#2EFFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+
+    <!-- ③ 棱：1dp 白描边，只有这一道 -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="1dp" android:color="#3DFFFFFF" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  房间两侧那两块信息屏的壳。
+
+  ★ 和 [her_glass_pill] 是**同一套玻璃**，只改了两处，理由如下：
+
+  · **圆角 14dp 而不是 26dp**。26dp 是那块「按住说话」胶囊的 —— 它要让人看出
+    「这一整条都能按」。这两块屏不按（见 RoomPanels 头注释：宁可不可点，
+    也别做成一按没反应），所以它不该长得像按钮，边界收一收，像一块挂着的屏。
+  · **四边都有一道亮棱**，不只顶上。胶囊贴在屏幕底边，光只能从上面来；
+    这两块是**挂在墙上**的，四周都有边。
+
+  剩下的照旧：上亮下暗、下半透一点她的粉、只有一道棱。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#52FFFFFF"
+                android:centerColor="#30FFFFFF"
+                android:endColor="#22FFC9DE" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:centerY="0.20"
+                android:startColor="#5CFFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke android:width="1dp" android:color="#47FFFFFF" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+</layer-list>

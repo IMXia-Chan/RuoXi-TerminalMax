@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 超级工作台：底下那一条的底。
+     做法和调度大屏同一套语言 —— 一层很淡的绿自上而下收掉，压一条 1px 的描边，
+     看起来像一块玻璃压在黑底上，而不是一个灰扑扑的系统控件条。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#1A35FFB0"
+        android:centerColor="#0D05080A"
+        android:endColor="#F205080A" />
+    <stroke
+        android:width="1dp"
+        android:color="#2635FFB0" />
+</shape>

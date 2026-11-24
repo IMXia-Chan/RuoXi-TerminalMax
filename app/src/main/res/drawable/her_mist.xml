@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  房间底下那层**紫雾**。
+
+  ★★ 2026-10-04 晚用户原话:「还是需要一个跟紫色雾一样的东西,**但是一定不要难看**」。
+
+  ★ 读法:他删掉的从来不是「紫雾」这件事,是**紫雾糊在字幕上**那件事
+    (见 buildBottomBar 里那段 —— 同一块东西他前后删过三次)。
+    所以这一版的紫雾**不在字上、不在按钮上、一个控件也不碰**,
+    它只是**铺在房间底部的一层背景**,玻璃胶囊浮在它上面。
+
+  ★ 它也不是纯为了好看。这一步有**功能**上的理由:
+    磨砂玻璃要「磨」得住东西才叫磨砂 —— 底下什么都没有(纯黑的 `#160F13`),
+    半透明的胶囊看上去就只是一块浅灰色的圆角块。
+    紫雾就是**给玻璃垫的那层东西**。删了它,胶囊立刻显脏。
+
+  ★ 形状是一团从底边正中漫上来的光:中心浓、往上淡出去,`"#00160F13"` 的
+    结尾色**必须等于房间底色**(见 ConMarnActivity 里 root 的 setBackgroundColor),
+    否则那圈边界会在屏幕上留一条看得见的硬边 —— 那正是「难看」的定义。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="radial"
+        android:centerX="0.5"
+        android:centerY="1.0"
+        android:gradientRadius="380dp"
+        android:startColor="#5C7A3F6B"
+        android:centerColor="#2E5B2F52"
+        android:endColor="#00160F13" />
+</shape>

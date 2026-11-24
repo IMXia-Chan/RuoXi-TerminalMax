@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  控制电脑那一页:麦克风 / 摄像头开关**底下那块底**。
+
+  ★★ 2026-10-05 加的。用户问:「控制电脑界面的麦克风和摄像头开启件在哪?」
+     真凶不是他找不到,是**它们根本看不见** ——
+     [ic_mic] / [ic_camera] 是**纯白色**的(`fillColor="#FFFFFFFF"`),
+     而这两个图标下面**什么也没有**,直接画在电脑镜像画面上。
+     电脑桌面只要偏亮(VS Code 深色以外的窗口、白网页、文档、浅色主题),
+     那就是**白底白图标** —— 一个像素都看不见。
+     偏偏旁边两颗状态点是绿/红的、看得见,于是他看到的是一颗**悬空的彩色小点**,
+     更加莫名其妙:「这有个点,可是开关呢?」
+
+  ★ 两层,和房间里那块玻璃胶囊([her_glass_pill])**同一条配方** ——
+    少的不是好看,是「可读性」:
+      · 深色半透明填充 —— 保证**亮底**上也看得见(白图标终于有东西衬着)
+      · 1dp 白描边     —— 保证**暗底**上也看得见(纯黑桌面上不至于糊成一团)
+
+  ⚠️ 这不是装饰,别删。它存在的**唯一**理由就是:
+     **这两个图标必须在任何桌面背景上都能被看见。**
+     删掉它,「麦克风和摄像头的开关在哪」这个问题原样回来。
+     判据也和那三次被删的装饰不同:它说明的事是**「这儿能按」**。
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#D91A1016" />
+            <stroke android:width="1dp" android:color="#80FFFFFF" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#99160F13" />
+            <stroke android:width="1dp" android:color="#4DFFFFFF" />
+        </shape>
+    </item>
+</selector>

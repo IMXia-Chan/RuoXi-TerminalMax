@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「这部手机自己」那只手的图标。
+
+  ★ 和 [ic_hand_pc] 配套:AI 助手那一层里,两台设备得**看得出不是同一台**。
+    两台都用 ic_ai 的话,那一层就退化成两行一样长的字 —— 而眼睛是靠形状认东西的。
+
+  ★ `fillType="evenOdd"`:外圈是机身,内圈挖成屏幕(挖空的那块会露出卡片底色)。
+    不改这个的话,它就是一块实心方块。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M8,2h8a1,1 0 0 1 1,1v18a1,1 0 0 1 -1,1H8a1,1 0 0 1 -1,-1V3a1,1 0 0 1 1,-1zM9.5,5v13.5h5V5zM11,19.7h2a0.9,0.9 0 0 1 0,1.8h-2a0.9,0.9 0 0 1 0,-1.8z" />
+</vector>

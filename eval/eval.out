@@ -1,0 +1,49 @@
+提示词 624 字符 / 工具 6 个 —— 现场从 AiAgent.kt 抠的
+用例 34 条,温度 0.20,http://127.0.0.1:18083
+
+预热 46.1s
+
+  ok   #1  打开记事本                  → open_app       (5078ms)
+  ok   #2  打开微信                   → open_app       (8287ms)
+  ok   #3  帮我开一下计算器               → open_app       (10623ms)
+  ok   #4  启动 Chrome              → open_app       (4257ms)
+  ok   #5  把画图打开                  → open_app       (4996ms)
+  ok   #6  开个文件资源管理器              → open_app       (6282ms)
+  ok   #7  我想看视频,打开哔哩哔哩           → open_app       (9585ms)
+  ok   #8  切到 Chrome              → focus_window   (7362ms)
+  ok   #9  切回微信                   → focus_window   (7949ms)
+  ok   #10 把记事本窗口调到最前面            → focus_window   (6733ms)
+  FAIL #11 显示一下终端窗口               该调 focus_window,却只回了话
+  FAIL #12 回到刚才那个网页               调成 get_state 了
+  ok   #13 下一首                    → media          (4658ms)
+  ok   #14 暂停                     → media          (7954ms)
+  ok   #15 继续播放                   → media          (5859ms)
+  ok   #16 上一首                    → media          (5951ms)
+  ok   #17 静音                     → media          (3933ms)
+  ok   #18 声音大一点                  → media          (69101ms)
+  FAIL #19 音量小一点                  media 的参数里没有「volume_down」
+  ok   #20 别放音乐了                  → media          (230200ms)
+  ok   #21 现在开着什么                 → get_state      (10822ms)
+  ok   #22 电脑上现在有哪些窗口             → get_state      (8539ms)
+  ok   #23 我现在在哪个窗口               → get_state      (7983ms)
+  ok   #24 看看电脑现在什么样              → get_state      (7566ms)
+  ok   #25 点一下发送按钮                → click_element  (13166ms)
+  FAIL #26 点开始菜单                  该调 click_element,却只回了话
+  FAIL #27 帮我点登录                  该调 click_element,却只回了话
+  FAIL #28 点右上角那个关闭               该调 click_element,却只回了话
+  ok   #29 点一下搜索框                 → click_element  (10306ms)
+  ok   #30 你好                     → (不调)           (4967ms)
+  ok   #31 谢谢                     → (不调)           (6291ms)
+  ok   #32 再见                     → (不调)           (5446ms)
+  ok   #33 打开记事本然后写个标题            → open_app       (10597ms)
+  ok   #34 打开微信给张三发消息             → open_app       (39745ms)
+
+命中 28/34 = 82.4%   平均 18771ms/条
+
+打偏的:
+  #11 显示一下终端窗口               该调 focus_window,却只回了话
+  #12 回到刚才那个网页               调成 get_state 了
+  #19 音量小一点                  media 的参数里没有「volume_down」
+  #26 点开始菜单                  该调 click_element,却只回了话
+  #27 帮我点登录                  该调 click_element,却只回了话
+  #28 点右上角那个关闭               该调 click_element,却只回了话

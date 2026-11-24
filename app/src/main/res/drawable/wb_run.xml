@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 超级工作台：开跑。
+     ★ 整条底栏只有这一处是实心亮的 —— 一屏里只能有一个「现在该按这个」，
+     其余全是描边。按下去变暗一点，表示已经吃到手指。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#CC35FFB0" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <solid android:color="#3A35FFB0" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF35FFB0" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+</selector>

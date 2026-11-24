@@ -1,0 +1,56 @@
+已带 UTF-8 BOM
+源文件大小 516 字节
+
+=== 默认（UTF-8 执行字符集） ===
+编译返回码 0
+输入 5     字节 53
+   utf8-> 请输入一个0~999之间的数：5是一位数。\n
+   gbk -> 璇疯緭鍏ヤ竴涓�0~999涔嬮棿鐨勬暟锛�5鏄�涓�浣嶆暟銆�\n
+   hex  -> e8afb7e8be93e585a5e4b880e4b8aa307e393939e4b98be997b4e79a84e695b0efbc9a35e698afe4b880e4bd8de695b0e380820d0a
+输入 26    字节 54
+   utf8-> 请输入一个0~999之间的数：26是两位数。\n
+   gbk -> 璇疯緭鍏ヤ竴涓�0~999涔嬮棿鐨勬暟锛�26鏄�涓や綅鏁般��\n
+   hex  -> e8afb7e8be93e585a5e4b880e4b8aa307e393939e4b98be997b4e79a84e695b0efbc9a3236e698afe4b8a4e4bd8de695b0e380820d0a
+输入 0     字节 53
+   utf8-> 请输入一个0~999之间的数：0是一位数。\n
+   gbk -> 璇疯緭鍏ヤ竴涓�0~999涔嬮棿鐨勬暟锛�0鏄�涓�浣嶆暟銆�\n
+   hex  -> e8afb7e8be93e585a5e4b880e4b8aa307e393939e4b98be997b4e79a84e695b0efbc9a30e698afe4b880e4bd8de695b0e380820d0a
+输入 999   字节 55
+   utf8-> 请输入一个0~999之间的数：999是三位数。\n
+   gbk -> 璇疯緭鍏ヤ竴涓�0~999涔嬮棿鐨勬暟锛�999鏄�涓変綅鏁般��\n
+   hex  -> e8afb7e8be93e585a5e4b880e4b8aa307e393939e4b98be997b4e79a84e695b0efbc9a393939e698afe4b889e4bd8de695b0e380820d0a
+输入 1234  字节 62
+   utf8-> 请输入一个0~999之间的数：1234已超出指定范围\n
+   gbk -> 璇疯緭鍏ヤ竴涓�0~999涔嬮棿鐨勬暟锛�1234宸茶秴鍑烘寚瀹氳寖鍥�\n
+   hex  -> e8afb7e8be93e585a5e4b880e4b8aa307e393939e4b98be997b4e79a84e695b0efbc9a31323334e5b7b2e8b685e587bae68c87e5ae9ae88c83e59bb40d0a
+输入 -5    字节 60
+   utf8-> 请输入一个0~999之间的数：-5已超出指定范围\n
+   gbk -> 璇疯緭鍏ヤ竴涓�0~999涔嬮棿鐨勬暟锛�-5宸茶秴鍑烘寚瀹氳寖鍥�\n
+   hex  -> e8afb7e8be93e585a5e4b880e4b8aa307e393939e4b98be997b4e79a84e695b0efbc9a2d35e5b7b2e8b685e587bae68c87e5ae9ae88c83e59bb40d0a
+
+=== -fexec-charset=GBK ===
+编译返回码 0
+输入 5     字节 38
+   utf8-> ������һ��0~999֮�������5��һλ����\n
+   gbk -> 请输入一个0~999之间的数：5是一位数。\n
+   hex  -> c7ebcae4c8ebd2bbb8f6307e393939d6aebce4b5c4cafda3ba35cac7d2bbcebbcafda1a30d0a
+输入 26    字节 39
+   utf8-> ������һ��0~999֮�������26����λ����\n
+   gbk -> 请输入一个0~999之间的数：26是两位数。\n
+   hex  -> c7ebcae4c8ebd2bbb8f6307e393939d6aebce4b5c4cafda3ba3236cac7c1bdcebbcafda1a30d0a
+输入 0     字节 38
+   utf8-> ������һ��0~999֮�������0��һλ����\n
+   gbk -> 请输入一个0~999之间的数：0是一位数。\n
+   hex  -> c7ebcae4c8ebd2bbb8f6307e393939d6aebce4b5c4cafda3ba30cac7d2bbcebbcafda1a30d0a
+输入 999   字节 40
+   utf8-> ������һ��0~999֮�������999����λ����\n
+   gbk -> 请输入一个0~999之间的数：999是三位数。\n
+   hex  -> c7ebcae4c8ebd2bbb8f6307e393939d6aebce4b5c4cafda3ba393939cac7c8fdcebbcafda1a30d0a
+输入 1234  字节 45
+   utf8-> ������һ��0~999֮�������1234�ѳ���ָ����Χ\n
+   gbk -> 请输入一个0~999之间的数：1234已超出指定范围\n
+   hex  -> c7ebcae4c8ebd2bbb8f6307e393939d6aebce4b5c4cafda3ba31323334d2d1b3acb3f6d6b8b6a8b7b6cea70d0a
+输入 -5    字节 43
+   utf8-> ������һ��0~999֮�������-5�ѳ���ָ����Χ\n
+   gbk -> 请输入一个0~999之间的数：-5已超出指定范围\n
+   hex  -> c7ebcae4c8ebd2bbb8f6307e393939d6aebce4b5c4cafda3ba2d35d2d1b3acb3f6d6b8b6a8b7b6cea70d0a

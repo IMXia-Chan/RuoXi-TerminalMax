@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 断开连接:一条**断掉的链**(中间断开、两截朝外)。
+     ★ 2026-10-04 晚新增,同 `ic_scan` —— 这颗按钮从抽屉搬进书签条一级页(终端)。
+     ⚠️ 为什么不做成「插头」或「电源」:那两个都表示「关掉/拔掉某样东西」,
+     而这条动作是**断开两台设备之间那条链**,链的意象才说得准。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 左半截 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:pathData="M3,12 h5.4" />
+    <!-- 右半截 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:pathData="M15.6,12 h5.4" />
+    <!-- 断口:两截各自朝外翘,读起来是「断的」而不是「两段线」 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10.4,9.4 L8.6,12 L10.4,14.6" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.9"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M13.6,9.4 L15.4,12 L13.6,14.6" />
+</vector>

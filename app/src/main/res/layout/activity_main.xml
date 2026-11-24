@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
@@ -11,110 +12,110 @@
         android:layout_height="match_parent"
         android:background="@color/surface" />
 
-    <!-- 抽屉容器:[面板][把手],整体偏上;收起时左移 panelWidth 只露把手 -->
-    <LinearLayout
-        android:id="@+id/drawer_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="start|top"
-        android:layout_marginTop="88dp"
-        android:orientation="horizontal">
+    <!--
+      ★★ 2026-10-04 晚:**左边那一整排抽屉(面板 + 把手)全删了。**
 
-        <!-- 毛玻璃白色抽屉面板(只放 扫描/连接/键盘;左/右键操作直接用屏幕手势) -->
-        <LinearLayout
-            android:id="@+id/drawer_panel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="top|center_horizontal"
-            android:background="@drawable/drawer_rounded"
-            android:paddingStart="20dp"
-            android:paddingEnd="10dp"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp"
-            android:clickable="true"
-            android:focusable="true">
+      用户原话:
+        「手机控制电脑左边那个什么扫描,断开连接,键盘等等删掉」
+        「放中转站,但就放扫描和断开连接」
 
-            <Button
-                android:id="@+id/btn_scan"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minWidth="86dp"
-                android:background="@drawable/btn_glass"
-                android:textColor="@color/glass_text"
-                android:textStyle="bold"
-                android:text="@string/scan" />
+      它原来装着六颗按钮,逐条的去处写在 `MainActivity.onCreate` 里那一段。
+      一句话:**这一页从今往后只有那块镜像画面**(外加右下角的摄像头/麦克风预览)。
+      留下的空白不是浪费 —— 屏幕镜像本来就该铺满整块屏幕,抽屉那 45% 一直是白占的。
 
-            <Button
-                android:id="@+id/btn_disconnect"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minWidth="86dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/btn_glass"
-                android:textColor="@color/glass_text"
-                android:textStyle="bold"
-                android:text="@string/disconnect" />
+      ★ 删的是**视图**,不是那几件事:扫描/断开连接搬进了中转站
+        ([StationOverlay]),键盘输入改成了「点屏幕自己弹输入法」(见 [ScreenView] 的 onTap)。
+    -->
 
-            <Button
-                android:id="@+id/btn_keyboard"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minWidth="86dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/btn_glass"
-                android:textColor="@color/glass_text"
-                android:textStyle="bold"
-                android:text="@string/keyboard" />
+    <!--
+      ★★ 2026-10-06:**「直接打到电脑上」那条输入条整块删了** —— 条子删对了,**图标当天就装回来了**。
 
-            <Button
-                android:id="@+id/btn_mirror"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minWidth="86dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/btn_glass"
-                android:textColor="@color/glass_text"
-                android:textStyle="bold"
-                android:text="镜像:高清" />
+      用户原话:
+        「不要打到电脑这个提示,因为**我的输入法可以直接打到直接发送**」
+        「字和条子都删,但别删掉悬浮窗的条子,然后悬浮窗不要再有字幕」
 
-        </LinearLayout>
+      它原来是什么:一条 `her_glass_pill` 磨砂玻璃胶囊(和房间里那条同款),
+      里面一个 `type_input` 输入框(**边打边发** —— 退格发真退格、回车发 Enter,
+      算法见 [TypeSync])+ 一句灰字提示(`type_to_pc_hint`「直接打到电脑上…」)+ 右侧收起箭头。
+      默认 `gone`,由右下角媒体面板里那颗键盘图标点出来。
 
-        <!-- 常驻把手:点击呼出/收起抽屉 -->
-        <View
-            android:id="@+id/drawer_handle"
-            android:layout_width="12dp"
-            android:layout_height="96dp"
-            android:layout_gravity="center_vertical"
-            android:background="@drawable/handle_bar"
-            android:clickable="true"
-            android:focusable="true" />
-    </LinearLayout>
+      ⚠️⚠️ **那次删过了头**:我把**入口**和条子一起删了,于是这一页
+      **再没有任何办法自己往电脑打字**(只剩她 AI 代打那条路)。用户当场问
+      「我控制电脑页面的输入法按钮呢」。**当天装回一颗 [kb_btn](见下面媒体面板那段),
+      它只叫 `MainActivity.showTextInput()` —— 那个弹框从来没被删过,只是没人叫它。**
 
-    <!-- 右下角媒体预览面板:相机/麦克风可点击图标(开=绿灯,关=红灯+斜杠)+ 摄像头人像;可拖动/缩放/最小化 -->
+      ★ 「点电脑对话框 → 手机自己弹输入法」那条老路**确实没了,而且是该没的** ——
+        系统输入法要有一个获焦的 EditText 当宿主,`type_input` 没了就没有焦点窗口。
+        而他的原话正是「我的输入法可以直接打到直接发送」:
+        他的输入法本来就能直接往电脑打字,不需要手机在中间转一手。
+        ★ 所以 `ScreenView.onTap` 那个回调今天**没有订阅者**(留着的理由写在它自己的 KDoc 里)。
+
+      ⚠️ 底下那 64dp 的让位**不动**(理由见 [media_preview_panel] 那段):
+        现在只需躲开她的悬浮窗那一条带子,而它仍然是 48dp、仍然从这边量不到 ——
+        「按最坏情况一次让够」一个字没变。
+    -->
+
+    <!-- 右下角媒体预览面板:相机/麦克风/键盘可点击图标(开=绿灯,关=红灯+斜杠)+ 摄像头人像;可拖动/缩放/最小化
+         ★ 2026-10-06:「键盘」那颗图标**当天删过一次又装回来了**(经过写在下面它自己那段)。
+           一句话:条子不该有,**入口必须有**。
+
+         ★★ 2026-10-05 用户报的 bug:
+            「控制电脑那画面的麦克风和摄像头和ai的语音发送位置重复了」
+            (追问他,他点的是「三个都挤在右下角」)
+
+         根因是**一条几何事实,不是一个写错的属性**:
+           · [type_bar] 是一条 `match_parent` 宽、`layout_gravity="bottom"` 的底条
+             (★ 2026-10-06 已整块删除,见上面那段;当时它加 10dp 外边距占掉最底下约 **51dp**);
+           · 她的悬浮窗那条带子([ConMarnBubble] 的输入条)是**系统级浮层**,
+             同样 `Gravity.BOTTOM`、同样满宽,又占掉最底下 **48dp**;
+           · 而这个面板原来 `layout_marginBottom="16dp"` —— 也就是说它**有 35dp
+             实实在在压在那条带子里**。麦克风/摄像头两颗图标又是**贴着面板底边**
+             (`layout_gravity="bottom"`)摆的,于是正好落在被盖住的那一段:
+             图标在,点不到;看上去只是「有点挤」,不像 bug。
+
+         ★ 修法:**把屏幕最底下那一条带子单独留给那两根条子**,媒体面板整体抬到它上面。
+           64dp = 51dp(底条)+ 13dp 余量;顺带把悬浮窗那条 48dp 的带子也一起让开了
+           —— 他说的第三样「ai 的语音发送」就是它,而它是个**系统浮层**,
+           这边量不到它的高度,只能按最坏情况一次让够。
+           ⚠️ 代价是没开摄像头时右下角会空出 64dp。**这是故意的,别「顺手」改回 16dp**
+             —— 改回去就是把这个 bug 原样种回来。
+
+         ⚠️ 另一条路是「底条出现时才把面板抬起来」(动态 translationY),看着更省地方。
+           没选它的理由:那样只能躲开自己这边的条子,躲不开**悬浮窗那条带子**
+           (那是另一个进程里的浮层,MainActivity 根本不知道它在不在)。
+           ★ [type_bar] 删掉之后这条理由**更成立**了 —— 剩下要躲的正好就是那个量不到的。-->
     <LinearLayout
         android:id="@+id/media_preview_panel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="end|bottom"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="64dp"
         android:orientation="horizontal"
         android:gravity="bottom"
         android:visibility="gone">
 
-        <!-- 麦克风图标(可点击开关):抽象图标 + 状态灯 + 关闭斜杠 -->
+        <!-- 麦克风图标(可点击开关):抽象图标 + 状态灯 + 关闭斜杠
+             ★★ 2026-10-05:壳从 `wrap_content`(原来只有 30dp)改成**实打实的 44dp**,
+                并且挂上了 [media_btn_bg]。两个理由,缺一不可:
+                · **看得见** —— 白图标压在亮桌面上等于隐形(见 [media_btn_bg] 那段);
+                · **按得到** —— 原来可点的是那颗 30dp 的 ImageView,比 48dp 的最小触摸
+                  目标小了一大截,手指本来就难落准。
+                所以**点击监听挂在壳上**,不是挂在图标上(见 MainActivity 里那两行)。
+                图标反而从 30dp 收到 24dp —— 壳变大、图形变小,那圈底才露得出来。 -->
         <FrameLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:id="@+id/mic_btn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:layout_gravity="bottom"
             android:layout_marginEnd="8dp"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/media_btn_bg">
 
             <ImageView
                 android:id="@+id/mic_icon"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_mic"
                 android:contentDescription="@string/mic" />
@@ -135,18 +136,20 @@
                 android:background="@drawable/dot_red" />
         </FrameLayout>
 
-        <!-- 摄像头图标(可点击开关):抽象图标 + 状态灯 + 关闭斜杠 -->
+        <!-- 摄像头图标(可点击开关):抽象图标 + 状态灯 + 关闭斜杠。和上面那颗麦克风同款。 -->
         <FrameLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:id="@+id/cam_btn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:layout_gravity="bottom"
             android:layout_marginEnd="8dp"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/media_btn_bg">
 
             <ImageView
                 android:id="@+id/cam_icon"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
                 android:layout_gravity="center"
                 android:src="@drawable/ic_camera"
                 android:contentDescription="@string/camera" />
@@ -167,6 +170,121 @@
                 android:background="@drawable/dot_red" />
         </FrameLayout>
 
+        <!-- 键盘图标:弹一个输入框,打完点「发送」直接进电脑当前光标处。
+             ★★ 2026-10-06:这颗图标当天**删过一次又装回来了**,经过写在这儿,别再来回折腾:
+             · 一起删掉的是它下面那条「直接打到电脑上…」的输入条([type_bar],连边打边发
+               + 回车提交 + 输入法顶位那约 180 行)。用户原话:「**不要打到电脑这个提示,
+               因为我的输入法可以直接打到直接发送**」—— 那条子确实不该留。
+             · **但我把入口也一起删了**,于是这一页再没有任何办法自己往电脑打字
+               (只剩她 AI 代打那条路)。用户当场问「我控制电脑页面的输入法按钮呢」。
+             · 现在这条:图标 + `MainActivity.showTextInput()`(那个弹框一直躺在代码里、
+               从来没被删过,只是没人叫它)。**要打字/要改,改那个弹框,别再把这条东西
+               长回一条横条** —— 横条是他明确不要的。 -->
+        <FrameLayout
+            android:id="@+id/kb_btn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/media_btn_bg">
+
+            <ImageView
+                android:id="@+id/kb_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_kb"
+                android:contentDescription="@string/keyboard" />
+        </FrameLayout>
+
+        <!-- ★★ 2026-10-06:退格键 —— 紧挨着上面那颗「键盘」图标的右边。
+            用户原话:「**在输入法右边加一个←的按钮用来作为删除键(一个一个删)**」
+                     「放页面上,随时能给电脑发退格」
+
+            ★ 它和「键盘」那颗是**两件事**:键盘负责**打字**(弹一个输入框,打完点「发送」);
+              这颗只管**删掉电脑上的一个字符**,按一下删一个,不经过任何输入框。
+
+            ★★ 为什么不能拿「发送一个退格字符」冒充它:那种做法发出去的是**文字**,
+              不是**按键**。电脑收到的是一段 Unicode 里编码 U+0008 的字符 ——
+              记事本会当没看见,浏览器会画一个豆腐块。手机这边看着「我明明按了」,
+              电脑那边什么都没发生,和「键盘坏了」一模一样。
+              所以它走的是**按键**那条路(虚键码 8 = 退格)。电脑端有一张白名单,
+              名单上没有的键一律拒发 —— **白名单不是通道,是闸门**。
+
+            ⚠️ 它是**这一排里的一颗**,所以必须一起加进 `MainActivity.isOnMediaButton` ——
+              那一排的空白处归面板的拖动逻辑管,漏了它的症状正是
+              「图标看得见、按不动」,而且**不报错**。 -->
+        <FrameLayout
+            android:id="@+id/kb_back_btn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp"
+            android:contentDescription="@string/kb_back"
+            android:background="@drawable/media_btn_bg">
+
+            <TextView
+                android:id="@+id/kb_back_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="←"
+                android:textColor="#FFFFFFFF"
+                android:textSize="22sp"
+                android:includeFontPadding="false" />
+        </FrameLayout>
+
+        <!-- ★★ 2026-10-08:回车键 —— 挨着上面那颗 ← 的右边。
+            用户原话:「**你现在能不能在我控制电脑那个界面,加一个回车(换行键)
+            不然我没法换行**」
+
+            ★ 它和那颗 ← 是**同一个道理、同一条路**:发出去的是**按键**(虚键码 13 = 回车),
+              不是一段文字。「发一个换行字符」电脑那边会当没看见(理由见 [kb_back_btn] 那段)。
+            ★★ **电脑端一个字都不用改** —— `server.py` 的 `VK_KEYS` 白名单里 13 一直在,
+              而且 `MainActivity` 那段常量注释里当时就写了这句:
+              「回车是 13,那张表上也有;今天没有调用方,要用的时候照这个格式加一行」。
+              今天就是那一天。
+              ⚠️ 反过来说:哪天想加**这张表上没有**的键(Ctrl、Shift、组合键),加在这儿是没用的 ——
+              电脑端会回 `sent=false`(手机这边会弹一句 toast,见 `onKeyReply`)。
+
+            ★ 显示的是 **↓**(U+2193),不是「回车」两个字,也不是 ↵(U+21B5)。
+              用户原话:「**你能不能把回车的按钮,换成↓图标,现在是字**」
+
+              这不是拍脑袋选的 —— 2026-10-08 把手机上那三份字体 `adb pull` 下来,
+              用 fontTools 直接读 cmap 核过:
+                `NotoSansSymbols-Regular-Subsetted.ttf` 有 ↓ ✅
+                `NotoSansCJK-Regular.ttc`(5 个 face)**全都有** ↓ ✅   ← 两个独立提供方
+                而 ↵(U+21B5)**两个字体里都没有,中文 CJK 里也没有** ✗
+              所以当初「不敢用符号、退回中文字」对 ↵ 是对的,**对 ↓ 是多虑了**。
+              ★ 同一个道理,左边那颗退格键的 ←(U+2190)也只靠这两处提供,是稳的。
+              (背景:这台机器的 `NotoSansSymbols-*` 是**精简子集**,挑一个没被保住的符号
+               会画成豆腐块 —— 而豆腐块看起来只是「图标怪怪的」,不像 bug。
+               **要用符号,先按上面那样读一遍 cmap,别凭常识推。**)
+
+            ⚠️ 同 ←:它是这一排里的一颗,必须一起加进 `MainActivity.isOnMediaButton`,
+              漏了它的症状正是「图标看得见、按不动」,而且**不报错**。 -->
+        <FrameLayout
+            android:id="@+id/kb_enter_btn"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="bottom"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="4dp"
+            android:contentDescription="@string/kb_enter"
+            android:background="@drawable/media_btn_bg">
+
+            <TextView
+                android:id="@+id/kb_enter_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="↓"
+                android:textColor="#FFFFFFFF"
+                android:textSize="22sp"
+                android:includeFontPadding="false" />
+        </FrameLayout>
         <!-- 摄像头人像预览(可切前/后置) -->
         <FrameLayout
             android:id="@+id/preview_box"
@@ -228,14 +346,19 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- 最小化后的恢复悬浮球(右下角) -->
+    <!-- 最小化后的恢复悬浮球(右下角)
+
+         ★ 2026-10-05:和 [media_preview_panel] 一起抬到「底条带子」上面(16dp → 64dp)。
+           理由写在那个面板的注释里,一句话:**它原来也压在那条底条里**。
+           它比图标更糟 —— 面板最小化之后,这是**唯一**能把面板叫回来的东西,
+           被底条盖住 = 相机预览彻底回不来。 -->
     <ImageButton
         android:id="@+id/btn_restore_panel"
         android:layout_width="52dp"
         android:layout_height="52dp"
         android:layout_gravity="end|bottom"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="64dp"
         android:src="@drawable/ic_camera"
         android:background="@drawable/restore_round"
         android:padding="13dp"

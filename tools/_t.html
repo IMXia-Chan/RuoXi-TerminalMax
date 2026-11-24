@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>halo in product</title>
+<link rel="stylesheet" href="../app/src/main/assets/dash/dash.css">
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden}</style>
+<style>/*x*/</style></head>
+<body>
+  <div id="hdr">
+    <div class="t">AGENT OPS / DISPATCH CENTER</div>
+    <div class="s" id="sub">SESSION —</div>
+  </div>
+  <div id="frame" aria-hidden="true">
+    <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+  </div>
+  <div id="panes">
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="hud"></div>
+      <button id="fold" type="button" aria-label="收起侧栏">›</button>
+    </div>
+    <div id="grip" title="拖动分界"></div>
+    <div id="side">
+      <canvas id="chart"></canvas>
+      <div id="list"></div>
+      <div id="empty">还没有事件。</div>
+    </div>
+  </div>
+  <script src="../app/src/main/assets/dash/dash-core.js"></script>
+  <script src="../app/src/main/assets/dash/dash-app.js"></script>
+  <script>
+  (function () {
+ window.__STOP = 1;
+    // ★ 时间用「刚刚」：信号点只在派出去/回来的那一秒里跑，摆到过去就永远看不见。
+    var t = Date.now() - 14 * 1800, n = 1;
+    function ev(role, kind, text, ref, tok) {
+      return { id: n++, task: "t1", from: kind === "ask" ? "hub" : "cloud", role: role,
+               kind: kind, ref: ref || 0, text: text || "", tok: tok || 0, at: t += 1800 };
+    }
+    var e = [];
+    e.push(ev("检索", "ask", "查今天的天气"));
+    e.push(ev("检索", "answer", "晴，12~19 度", 1, 1840));
+    e.push(ev("写作", "ask", "写一段开场"));
+    e.push(ev("写作", "answer", "写好了", 3, 3260));
+    e.push(ev("审校", "ask", "挑毛病"));
+    e.push(ev("审校", "error", "超时", 5, 0));
+    e.push(ev("估算", "ask", "粗算耗时"));
+    e.push(ev("估算", "answer", "约 40 秒", 7, 910));
+    e.push(ev("检索", "ask", "再查一次是否下雨"));
+    e.push(ev("检索", "answer", "不下", 9, 2100));
+    e.push(ev("写作", "ask", "改成更短"));
+    e.push(ev("审校", "ask", "复看一遍"));
+    e.push(ev("估算", "ask", "估一下成本"));
+    e.push(ev("检索", "ask", "还有没别的事"));
+    // ★ 最后一条故意不回：场上要留一束在跑的
+    setTimeout(function () { window.dashPush(JSON.stringify(e)); }, 30);
+    setTimeout(function () { window.__ok = 1; }, 900);
+  })();
+  </script>
+</body>
+</html>

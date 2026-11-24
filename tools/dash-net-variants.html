@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>网的两种形态（效果图，不是产品页）</title>
+<style>
+  html, body { margin: 0; background: #05080F; overflow: hidden; }
+  #shot { width: 1200px; height: 560px; display: flex; flex-direction: column;
+          font: 13px/1.55 "Noto Sans SC", "PingFang SC", system-ui, sans-serif; color: #E6EFFA; }
+  #hdr { height: 34px; display: flex; align-items: center; padding: 0 16px;
+         font: 10px ui-monospace, Menlo, Consolas, monospace; color: #94A7C6;
+         border-bottom: 1px solid rgba(226,238,255,0.075); }
+  #hdr .r { margin-left: auto; color: #5B6C8A; }
+  #panes { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 760px 9px 431px; }
+  #stage { position: relative; min-width: 0; }
+  #cv { display: block; width: 100%; height: 100%; }
+  #grip { background: rgba(226,238,255,0.05); }
+  #side { min-width: 0; padding: 10px 12px 0; overflow: hidden; }
+  #side .t { font: 9px ui-monospace, Menlo, Consolas, monospace; color: #5B6C8A; letter-spacing: .08em; margin: 0 0 6px; }
+  .row { display: flex; gap: 8px; font: 10px/1.7 ui-monospace, Menlo, Consolas, monospace;
+         color: #94A7C6; white-space: nowrap; overflow: hidden; }
+  .row b { color: #7EE2FF; font-weight: 400; }
+  .row .v { color: #E6EFFA; overflow: hidden; text-overflow: ellipsis; }
+  .row.err b { color: #FF6B81; }
+  .card { border: 1px solid rgba(226,238,255,0.075); border-radius: 5px; padding: 7px 9px;
+          margin-bottom: 6px; background: rgba(9,13,20,0.5); }
+  .card .hd { display: flex; font: 9px ui-monospace, Menlo, Consolas, monospace; color: #5B6C8A; }
+  .card .hd span:last-child { margin-left: auto; }
+  .card .nm { font-size: 11px; margin: 2px 0 3px; }
+  .bar { height: 3px; border-radius: 2px; background: rgba(226,238,255,0.08); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #489EFF; }
+  #hud { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: flex;
+         align-items: center; background: rgba(5,8,15,0.92); border-top: 1px solid rgba(226,238,255,0.075); }
+  #hud .c { flex: 1; text-align: center; border-right: 1px solid rgba(226,238,255,0.06); }
+  #hud .c:last-child { border-right: 0; }
+  #hud b { display: block; font: 20px ui-monospace, Menlo, Consolas, monospace; font-weight: 400; }
+  #hud i { font: 10px ui-monospace, Menlo, Consolas, monospace; color: #5B6C8A; font-style: normal; }
+</style>
+</head>
+<body>
+<div id="shot">
+  <div id="hdr"><span id="h1">AGENT OPS / DISPATCH CENTER</span><span class="r">OPERATION — 09:41</span></div>
+  <div id="panes">
+    <div id="stage"><canvas id="cv"></canvas>
+      <div id="hud">
+        <div class="c"><b>12</b><i>派活</i></div><div class="c"><b>11</b><i>回来</i></div>
+        <div class="c"><b style="color:#FF6B81">1</b><i>失败</i></div>
+        <div class="c"><b style="color:#9FF5CE">0</b><i>在跑</i></div>
+        <div class="c"><b style="color:#FFC478">61.4k</b><i>token</i></div>
+      </div>
+    </div>
+    <div id="grip"></div>
+    <div id="side">
+      <p class="t">各岗位 · 按需展开</p>
+      <div class="card"><div class="hd"><span>VX-01</span><span>3 派 · 全回</span></div><div class="nm">编辑</div><div class="bar"><i style="width:76%"></i></div></div>
+      <div class="card"><div class="hd"><span>VX-02</span><span>4 派 · 全回</span></div><div class="nm">审稿人</div><div class="bar"><i style="width:92%"></i></div></div>
+      <div class="card"><div class="hd"><span>VX-03</span><span>2 派 · 1 失败</span></div><div class="nm">估算师</div><div class="bar"><i style="width:40%;background:#FF6B81"></i></div></div>
+      <div class="card"><div class="hd"><span>VX-04</span><span>3 派 · 全回</span></div><div class="nm">检索员</div><div class="bar"><i style="width:64%"></i></div></div>
+      <p class="t" style="margin-top:12px">流水账 · 从上往下</p>
+      <div class="row"><b>中枢</b><span class="v">分工 4 份：编辑|改短；审稿人|挑毛病…</span></div>
+      <div class="row"><b>VX-01</b><span class="v">回来 32 字 · 8.4s · +12.8k</span></div>
+      <div class="row"><b>VX-02</b><span class="v">回来 21 字 · 9.1s · +9.9k</span></div>
+      <div class="row err"><b>VX-03</b><span class="v">失败 · 工具调用超时</span></div>
+      <div class="row"><b>中枢</b><span class="v">对账：2 条相同点、1 条分歧</span></div>
+      <div class="row"><b>VX-04</b><span class="v">回来 27 字 · 7.3s · +8.7k</span></div>
+    </div>
+  </div>
+</div>
+<script>
+/* ?v=globe 球体网 / ?v=fan 半扇形内网 —— 两张图同一个数据源，只换摆法。 */
+var V = (location.search.match(/v=(\w+)/) || [])[1] || "globe";
+document.getElementById("h1").textContent =
+  V === "fan" ? "AGENT OPS / DISPATCH CENTER — SECTOR" : "AGENT OPS / DISPATCH CENTER — GLOBE";
+
+var cv = document.getElementById("cv");
+var g = cv.getContext("2d");
+var W = 760, H = 496, DPR = 2;
+cv.width = W * DPR; cv.height = H * DPR;
+g.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+var FG = "#E6EFFA", DIM = "#94A7C6", FAINT = "#5B6C8A";
+var CYAN = "#7EE2FF", RED = "#FF6B81", WARM = "#FFC478", MINT = "#9FF5CE";
+var FIELD_H = H - 64;
+
+var roles = [
+  { name: "编辑", code: "VX-01" }, { name: "审稿人", code: "VX-02" },
+  { name: "估算师", code: "VX-03" }, { name: "检索员", code: "VX-04" }
+];
+var asks = [
+  { r: 0, text: "改短一点，书面一些", st: "done", tok: 12840 },
+  { r: 0, text: "把三审意见并进正文", st: "done", tok: 7120 },
+  { r: 0, text: "把结论提到第一段", st: "done", tok: 4820 },
+  { r: 1, text: "挑毛病，说哪里站不住", st: "done", tok: 9860 },
+  { r: 1, text: "二审：看结论有没有跳步", st: "done", tok: 5240 },
+  { r: 1, text: "三审：只挑事实错误", st: "done", tok: 3870 },
+  { r: 1, text: "四审：只看数字有没有错", st: "done", tok: 3390 },
+  { r: 2, text: "粗算这一版要多久改完", st: "done", tok: 11200 },
+  { r: 2, text: "按二审意见重估工期", st: "err", tok: 2110 },
+  { r: 3, text: "把这一版和上一版逐条对齐", st: "done", tok: 15620 },
+  { r: 3, text: "把引用来源找齐", st: "done", tok: 8730 },
+  { r: 3, text: "找一下这位作者的其他文章", st: "done", tok: 10930 }
+];
+
+function rr(x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+/* ── 底 ── */
+g.fillStyle = "#0B0C10"; g.fillRect(0, 0, W, H);
+g.strokeStyle = "rgba(72,158,255,0.04)"; g.lineWidth = 1;
+for (var gx = 0; gx < W; gx += 26) { g.beginPath(); g.moveTo(gx + .5, 0); g.lineTo(gx + .5, FIELD_H); g.stroke(); }
+for (var gy = 0; gy < FIELD_H; gy += 26) { g.beginPath(); g.moveTo(0, gy + .5); g.lineTo(W, gy + .5); g.stroke(); }
+
+var HUB = { x: 0, y: 0 };
+
+/* ═════════ 摆法 A：球体 ═════════ */
+function buildGlobe() {
+  HUB.x = W * 0.47; HUB.y = FIELD_H * 0.50;
+  var R = Math.min(W * 0.40, FIELD_H * 0.44);
+  var XS = 1.5, YS = 1.0;                      // 宽屏上把球压扁一点、拉宽一点
+  var nodes = [];
+  var LATS = [-0.55, 0.45, -0.25, 0.62];      // 纬度（弧度）
+  var LONS = [-2.10, 0.35, 1.25, 2.10];       // 经度（弧度）
+  for (var i = 0; i < roles.length; i++) {
+    var la = LATS[i], lo = LONS[i];
+    var depth = Math.cos(la) * Math.cos(lo);   // >0 在前半球
+    var nx = HUB.x + R * Math.cos(la) * Math.sin(lo) * XS;
+    var ny = HUB.y - R * Math.sin(la) * YS;
+    nodes.push({
+      role: roles[i],
+      x: Math.max(140, Math.min(W - 140, nx)),
+      y: Math.max(70, Math.min(FIELD_H - 56, ny)),
+      depth: depth,
+      a: Math.atan2(ny - HUB.y, nx - HUB.x)
+    });
+  }
+
+  /* 球体的经纬线：**刻度，不是连接** —— 极淡、均匀、不随事件变。
+     它让「这是一颗球」看得出来；真正的神经是下面那些亮丝。 */
+  g.lineWidth = 0.7;
+  g.strokeStyle = "rgba(126,226,255,0.085)";
+  for (var li = 0; li < 7; li++) {
+    var phi = (-75 + li * 25) * Math.PI / 180;
+    var yy = HUB.y - R * Math.sin(phi) * YS;
+    var rx2 = Math.max(2, R * Math.cos(phi) * XS);
+    g.beginPath();
+    g.ellipse(HUB.x, yy, rx2, Math.max(1, rx2 * 0.09), 0, 0, Math.PI * 2);
+    g.stroke();
+  }
+  for (var mi = 0; mi < 6; mi++) {
+    var lo2 = (-75 + mi * 30) * Math.PI / 180;
+    g.beginPath();
+    g.ellipse(HUB.x, HUB.y, Math.abs(R * XS * Math.cos(lo2)), R * YS, 0, 0, Math.PI * 2);
+    g.stroke();
+  }
+  return nodes;
+}
+
+/* ═════════ 摆法 B：半扇形 ═════════ */
+function buildFan() {
+  HUB.x = W * 0.24; HUB.y = FIELD_H * 0.52;
+  var R = Math.min(W * 0.58, FIELD_H * 0.46);
+  var nodes = [];
+  var A = [-58, -20, 20, 58];
+  for (var i = 0; i < roles.length; i++) {
+    var a = A[i] * Math.PI / 180;
+    nodes.push({
+      role: roles[i],
+      x: Math.max(140, Math.min(W - 140, HUB.x + Math.cos(a) * R)),
+      y: Math.max(70, Math.min(FIELD_H - 56, HUB.y + Math.sin(a) * R * 1.05)),
+      depth: 1, a: a
+    });
+  }
+
+  /* 扇面的三道刻度弧：同样是刻度，不是连接 */
+  g.lineWidth = 0.7;
+  g.strokeStyle = "rgba(126,226,255,0.075)";
+  for (var k = 1; k <= 3; k++) {
+    var rk = R * (0.35 + k * 0.21);
+    g.beginPath();
+    for (var s = 0; s <= 30; s++) {
+      var aa = (-66 + s * (132 / 30)) * Math.PI / 180;
+      var px = HUB.x + Math.cos(aa) * rk, py = HUB.y + Math.sin(aa) * rk * 0.92;
+      if (s === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.stroke();
+  }
+  return nodes;
+}
+
+var nodes = V === "fan" ? buildFan() : buildGlobe();
+
+/* ── 神经：一根 = 一次真派活 ── */
+function thread(n, seed, st, chip) {
+  var HAIRS = 5, steps = 26;
+  var dim = n.depth < 0 ? 0.55 : 1;
+  for (var hair = 0; hair < HAIRS; hair++) {
+    g.beginPath();
+    for (var i = 0; i <= steps; i++) {
+      var tt = i / steps;
+      var x = HUB.x + (n.x - HUB.x) * tt;
+      var y = HUB.y + (n.y - HUB.y) * tt;
+      var bulge = 12 + (seed % 16);
+      var b = Math.sin(Math.PI * tt) * bulge;
+      var nx = -Math.sin(n.a), ny = Math.cos(n.a);
+      var off = b * ((hair - 2) * 0.4 + ((seed % 9) - 4) * 0.09) + Math.sin(tt * (7 + hair) + seed + hair * 1.7) * 2.2;
+      var px = x + nx * off, py = y + ny * off;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    if (st === "err") { g.strokeStyle = "rgba(255,107,129," + dim * (0.18 + 0.28 * (1 - hair * 0.15)) + ")"; g.setLineDash([3, 5]); }
+    else if (st === "run") { g.strokeStyle = "rgba(126,226,255," + dim * (0.12 + 0.26 * (1 - hair * 0.15)) + ")"; }
+    else { g.strokeStyle = "rgba(148,167,198," + dim * (0.08 + 0.15 * (1 - hair * 0.15)) + ")"; }
+    g.lineWidth = hair === 2 ? 1.4 : 0.8;
+    g.stroke();
+  }
+  g.setLineDash([]);
+
+  if (chip) {
+    var u = 0.28 + ((seed % 6) * 0.10);
+    var tx = HUB.x + (n.x - HUB.x) * u, ty = HUB.y + (n.y - HUB.y) * u;
+    var bb = Math.sin(Math.PI * u) * (12 + (seed % 16));
+    tx += -Math.sin(n.a) * bb * 0.35; ty += Math.cos(n.a) * bb * 0.35;
+    var s = chip.length > 9 ? chip.slice(0, 9) + "…" : chip;
+    g.font = "8px ui-monospace, Menlo, Consolas, monospace";
+    var tw = g.measureText(s).width + 9;
+    g.fillStyle = "rgba(8,12,19,0.94)"; rr(tx - tw / 2, ty - 7, tw, 14, 3); g.fill();
+    g.strokeStyle = st === "err" ? "rgba(255,107,129,0.45)" : "rgba(126,226,255,0.30)";
+    g.lineWidth = 0.7; g.stroke();
+    g.fillStyle = st === "err" ? "rgba(255,180,190,0.92)" : "rgba(226,238,255,0.85)";
+    g.textAlign = "center"; g.fillText(s, tx, ty + 2.8); g.textAlign = "left";
+  }
+}
+
+/* 后半球先画，前半球压在上面 —— 这样才像球，不像摊平的圆 */
+var order = nodes.map(function (n, i) { return i; }).sort(function (a, b) { return nodes[a].depth - nodes[b].depth; });
+for (var oi = 0; oi < order.length; oi++) {
+  var n0 = nodes[order[oi]];
+  for (var ai = 0; ai < asks.length; ai++) {
+    if (asks[ai].r !== order[oi]) continue;
+    var seed = 17 + ai * 11;
+    thread(n0, seed, asks[ai].st, ai % 2 === 0 ? asks[ai].text : null);
+    if (asks[ai].st !== "run") thread(n0, 53 + ai * 7, "done", null);
+  }
+}
+
+/* ── 中枢 ── */
+g.beginPath(); g.fillStyle = "rgba(126,226,255,0.07)"; g.arc(HUB.x, HUB.y, 34, 0, Math.PI * 2); g.fill();
+g.beginPath(); g.fillStyle = "rgba(126,226,255,0.18)"; g.arc(HUB.x, HUB.y, 17, 0, Math.PI * 2); g.fill();
+g.beginPath(); g.fillStyle = MINT; g.arc(HUB.x, HUB.y, 7, 0, Math.PI * 2); g.fill();
+g.beginPath(); g.fillStyle = "#0B0C10"; g.arc(HUB.x, HUB.y, 3, 0, Math.PI * 2); g.fill();
+g.font = "9px ui-monospace, Menlo, Consolas, monospace";
+g.fillStyle = "rgba(159,245,206,0.7)"; g.textAlign = "center";
+g.fillText("中枢", HUB.x, HUB.y + 28); g.textAlign = "left";
+
+/* ── 岗位节点 ── */
+for (var qi = 0; qi < nodes.length; qi++) {
+  var nd = nodes[qi];
+  var mine = asks.filter(function (x) { return x.r === qi; });
+  var failed = mine.some(function (x) { return x.st === "err"; });
+  var dim2 = nd.depth < 0 ? 0.6 : 1;
+  var col = failed ? RED : FAINT;
+  var toks = mine.reduce(function (s, x) { return s + x.tok; }, 0);
+
+  g.beginPath(); g.fillStyle = col; g.globalAlpha = dim2; g.arc(nd.x, nd.y, 3.4, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.strokeStyle = "rgba(226,238,255,0.20)"; g.lineWidth = 0.8;
+  g.arc(nd.x, nd.y, 8, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+
+  var bw = 104, bh = 32;
+  var left = nd.x < HUB.x;
+  var bx = left ? nd.x - bw - 14 : nd.x + 14;
+  var by = nd.y - bh / 2;
+  bx = Math.max(4, Math.min(W - bw - 4, bx));
+  by = Math.max(4, Math.min(FIELD_H - bh - 4, by));
+  g.fillStyle = "rgba(9,13,20,0.95)"; rr(bx, by, bw, bh, 4); g.fill();
+  g.strokeStyle = failed ? "rgba(255,107,129,0.35)" : "rgba(226,238,255,0.12)";
+  g.lineWidth = 0.8; g.stroke();
+  g.font = "9px ui-monospace, Menlo, Consolas, monospace";
+  g.fillStyle = FAINT; g.fillText(nd.role.code, bx + 9, by + 12);
+  g.textAlign = "right"; g.fillStyle = FAINT; g.fillText(mine.length + " 派", bx + bw - 9, by + 12);
+  g.font = '11px "Noto Sans SC", system-ui, sans-serif';
+  g.fillStyle = FG; g.textAlign = "left"; g.fillText(nd.role.name, bx + 9, by + 24);
+  g.textAlign = "right"; g.fillStyle = failed ? RED : WARM;
+  g.fillText((toks / 1000).toFixed(1) + "k", bx + bw - 9, by + 24);
+  g.textAlign = "left";
+}
+
+/* 暗角 */
+var vg = g.createRadialGradient(W * 0.5, FIELD_H * 0.5, Math.min(W, FIELD_H) * 0.33,
+  W * 0.5, FIELD_H * 0.5, Math.max(W, FIELD_H) * 0.92);
+vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.6)");
+g.fillStyle = vg; g.fillRect(0, 0, W, H);
+</script>
+</body>
+</html>

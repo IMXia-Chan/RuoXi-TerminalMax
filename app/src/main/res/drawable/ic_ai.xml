@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 闪光/AI 图标(一颗大四角星 + 一颗小四角星;白底,布局里按需染色) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10,2 L11.9,8.1 L18,10 L11.9,11.9 L10,18 L8.1,11.9 L2,10 L8.1,8.1 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M18,14 L18.95,17.05 L22,18 L18.95,18.95 L18,22 L17.05,18.95 L14,18 L17.05,17.05 Z" />
+</vector>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 她说的话的气泡:面板色、左下角收尖(贴着左边) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#23272E" />
+    <corners
+        android:topLeftRadius="14dp" android:topRightRadius="14dp"
+        android:bottomRightRadius="14dp" android:bottomLeftRadius="4dp" />
+</shape>

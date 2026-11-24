@@ -1,4 +1,4 @@
 @echo off
-rem é€€å‡ºåå°é™é»˜æœåŠ¡(ä»…ç»“æŸ server.py --background çš„è¿›ç¨‹,ä¸ç¢°å…¶å®ƒ python/pythonw)ã€‚
-powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe'\" | Where-Object { $_.CommandLine -like '*server.py*--background*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Output ('å·²ç»“æŸ PID ' + $_.ProcessId) }"
+rem ÍË³öºóÌ¨¾²Ä¬·şÎñ(½ö½áÊø server.py --background µÄ½ø³Ì,²»ÅöÆäËü python/pythonw)¡£
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe'\" | Where-Object { $_.CommandLine -like '*server.py*--background*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Output ('ÒÑ½áÊø PID ' + $_.ProcessId) }"
 pause

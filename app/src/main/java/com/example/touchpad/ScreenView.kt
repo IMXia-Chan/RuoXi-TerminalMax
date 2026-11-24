@@ -40,6 +40,33 @@ class ScreenView @JvmOverloads constructor(
     /** 回调:滚轮刻度(正=向上滚,负=向下滚,一个刻度=一格)。 */
     var onWheel: ((Int) -> Unit)? = null
 
+    /**
+     * 回调:**一次干净的单击**(左键那一下已经发出去了),坐标同 [onAbs]。
+     *
+     * ★★ 它只为一件事存在 —— 用户 2026-10-04 原话:
+     *   「那个键盘我想,就是**手机点击电脑对话框手机能自己跳出输入法**啊」
+     *
+     * 所以它带的是「刚刚点了哪儿」,而不是「点了什么东西」——
+     * **能不能打字这件事这个 View 不知道**,它手里只有像素。拿答案的是电脑
+     * (UIA + 指针形状),所以这里只负责把坐标交出去。
+     *
+     * ⚠️ ★★ 2026-10-06:**这个回调今天没有订阅者了。** 用户当天把
+     *   「直接打到电脑上」那条输入条整块删了(原话:「**我的输入法可以直接打到
+     *   直接发送**」),而它的**唯一**落点(`MainActivity` 里
+     *   `onTap → TouchpadClient.sendHit → 电脑回 HITR → 弹出那条条子`)随之消失。
+     *   ★ 回调本身**故意留着**:`ScreenView` 是通用的触控板视图,不该知道上层还需不需要
+     *   这一下;而且它是 `var`,没人接时 `:383` 那句 `if (tap != null)` 会让它**什么都不做**
+     *   (不崩,只是白跑一次空判断)。要恢复那条路,在 `MainActivity` 重新赋一个 lambda 即可。
+     *
+     * ★ 什么时候**不**回调(每一条都是有意省的):
+     *   · 拖动、长按(那是右键)、多指手势收尾 —— 那些都不是「点一下」
+     *   · 双击的第二下 —— 它的意思是「打开」,不是「我要打字」;
+     *     双击的第一下**会**回调(那一刻它还不知道后面还跟一下)
+     * ★ 时机上它**晚于**左键松开一小会儿:探测要问「现在谁有光标/焦点」,
+     *   而在按钮还没抬起来的时候问,拿到的常常是**点之前**的那个答案。
+     */
+    var onTap: ((x: Int, y: Int) -> Unit)? = null
+
     private var bitmap: Bitmap? = null
     private var screenW = 0
     private var screenH = 0
@@ -179,12 +206,12 @@ class ScreenView @JvmOverloads constructor(
         super.onDraw(canvas)
         val bmp = bitmap
         if (bmp == null) {
-            canvas.drawText(
-                "先点「扫描」连上电脑,这里会显示电脑画面",
-                width / 2f,
-                height / 2f,
-                hintPaint
-            )
+            // ★ 2026-10-08 他点名去掉中间那句占位提示「先点『扫描』连上电脑…」。
+            //   没画面时这一屏就是空的(断开=干净的黑屏,不再有字)。
+            //   为什么不改成「一次性弹窗」:那要多一个「已经看过」的存盘标志 + 一个对话框
+            //   + 一个触发点,三处;而他要的是「两个改法里挑改动小的那个」。
+            // ★ `hintPaint` 那个画笔**故意留着没删**(他的规矩:不删代码)——
+            //   它现在没有调用方了,留着是为了万一要加回一行提示时不用重配字体尺寸。
             return
         }
         canvas.save()
@@ -358,6 +385,12 @@ class ScreenView @JvmOverloads constructor(
                                 postDelayed({ onAbs?.invoke(sx, sy, 0) }, CLICK_RELEASE_MS)
                                 lastTapTime = e.eventTime
                                 lastTapX = x; lastTapY = y
+                                // ★ 「点了一下」(见 onTap 那段):**等左键松开之后**再报,
+                                //   否则电脑那边探到的还是「点之前」的焦点。见 PROBE_DELAY_MS。
+                                val tap = onTap
+                                if (tap != null) {
+                                    postDelayed({ tap(sx, sy) }, CLICK_RELEASE_MS + PROBE_DELAY_MS)
+                                }
                             }
                         }
                     }
@@ -417,6 +450,18 @@ class ScreenView @JvmOverloads constructor(
         private const val DOUBLETAP_MAX_DIST = 60f     // px
         private const val DRAG_THRESHOLD = 12f     // px
         private const val CLICK_RELEASE_MS = 40L
+
+        /**
+         * 左键松开之后,再等这么久才把「点了一下」报出去(见 [onTap])。
+         *
+         * ★ 为什么需要它:点进一个输入框这件事**是在松开鼠标那一下才发生的**
+         *   —— 目标程序要收到 button-up、切焦点、重画,之后指针形状和焦点才变成
+         *   「这里能打字」。紧跟着 DOWN 就去问,电脑答的常常是**点之前**那一版。
+         *   120ms 是「够它反应过来」和「用户感觉不到延迟」之间的取值:
+         *   这一整条对用户是不可见的(它只决定键盘弹不弹),慢一点没有代价,
+         *   快错了的代价是**键盘不弹**。
+         */
+        private const val PROBE_DELAY_MS = 120L
         private const val LONG_PRESS_MS = 500L
         private const val LONG_PRESS_MOVE_MAX = 20f    // px,长按期间允许的轻微移动
         private const val AFTER_MULTI_IGNORE_MS = 400L

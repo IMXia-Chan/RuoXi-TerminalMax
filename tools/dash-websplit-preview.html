@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>左右屏效果图（不是产品页）</title>
+<style>
+  html, body { margin: 0; background: #05080F; overflow: hidden; }
+  #shot { width: 1200px; height: 560px; }
+  canvas { display: block; width: 1200px; height: 560px; }
+</style>
+</head>
+<body>
+<div id="shot"><canvas id="cv"></canvas></div>
+<script>
+/*
+ * 只为出**效果图**：左＝像素办公室，右＝蜘蛛网，底部读数条。
+ * ★ 这份文件永远不进 APK（它在 tools/ 里）。
+ * ★ 网上的每一条丝都对应一条下面这个 events 里的 ask —— 产品里也照这条规矩画。
+ */
+var W = 1200, H = 560;
+var DPR = 2;
+var cv = document.getElementById("cv");
+cv.width = W * DPR; cv.height = H * DPR;
+var g = cv.getContext("2d");
+g.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+var FG = "#E6EFFA", DIM = "#94A7C6", FAINT = "#5B6C8A";
+var ACCENT = "#489EFF", CYAN = "#7EE2FF", RED = "#FF6B81", WARM = "#FFC478";
+var MINT = "#9FF5CE";
+var MONO = '11px ui-monospace, Menlo, Consolas, "Roboto Mono", monospace';
+
+var HDR = 34, HUD = 64;
+var SPLIT = 700;                      // 左右分界
+var STAGE_Y = HDR, STAGE_H = H - HDR - HUD;
+
+/* ── 真事件（产品里由 AgentBus 喂，预览这里是死的） ── */
+var roles = [
+  { name: "编辑",   code: "VX-01" },
+  { name: "审稿人", code: "VX-02" },
+  { name: "估算师", code: "VX-03" },
+  { name: "检索员", code: "VX-04" }
+];
+var asks = [
+  { role: 0, text: "改短一点，书面一些", state: "done" },
+  { role: 0, text: "把三审意见并进正文", state: "run" },
+  { role: 1, text: "挑毛病，说哪里站不住", state: "done" },
+  { role: 1, text: "二审：看结论有没有跳步", state: "done" },
+  { role: 1, text: "三审：只挑事实错误", state: "done" },
+  { role: 2, text: "粗算这一版要多久改完", state: "done" },
+  { role: 2, text: "按二审意见重估工期", state: "err" },
+  { role: 3, text: "把这一版和上一版逐条对齐", state: "done" },
+  { role: 3, text: "把引用来源找齐", state: "done" }
+];
+
+function rr(x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+function px(x, y, w, h, c) { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
+
+/* ══════════════ 底：暗场 + 网格 ══════════════ */
+g.fillStyle = "#0B0C10";
+g.fillRect(0, 0, W, H);
+g.strokeStyle = "rgba(72,158,255,0.05)";
+g.lineWidth = 1;
+for (var gx = 0; gx < W; gx += 28) { g.beginPath(); g.moveTo(gx + .5, 0); g.lineTo(gx + .5, H); g.stroke(); }
+for (var gy = 0; gy < H; gy += 28) { g.beginPath(); g.moveTo(0, gy + .5); g.lineTo(W, gy + .5); g.stroke(); }
+
+/* ══════════════ 顶栏 ══════════════ */
+g.fillStyle = "rgba(5,8,15,0.9)";
+g.fillRect(0, 0, W, HDR);
+px(0, HDR - 1, W, 1, "rgba(226,238,255,0.075)");
+g.font = '10px ui-monospace, Menlo, Consolas, monospace';
+g.fillStyle = DIM;
+g.fillText("AGENT OPS / DISPATCH CENTER", 16, 22);
+g.fillStyle = FAINT;
+g.fillText("OPERATION  —  09:41", 300, 22);
+g.textAlign = "right";
+g.fillStyle = FAINT;
+g.fillText("分工 4 位 · 回来 8 份 · 1 位还在跑", W - 16, 22);
+g.textAlign = "left";
+
+/* ══════════════ 左：像素办公室 ══════════════ */
+g.save();
+g.beginPath(); g.rect(0, STAGE_Y, SPLIT, STAGE_H); g.clip();
+
+var S = 4;                               // 一个逻辑像素 = 4 屏像素
+var OX = 24, OY = STAGE_Y + 18;
+var LW = Math.floor((SPLIT - 48) / S), LH = Math.floor((STAGE_H - 36) / S);
+
+g.save();
+g.translate(OX, OY);
+g.scale(S, S);
+g.imageSmoothingEnabled = false;
+
+var TOP = 12;                            // 墙的高度（逻辑行）
+px(0, 0, LW, LH, "#6B6E77");
+for (var fy = TOP; fy < LH; fy += 6) {
+  for (var fx = 0; fx < LW; fx += 6) {
+    var k = ((fx * 7 + fy * 13) % 5 === 0) ? "#63666F" : "#6B6E77";
+    px(fx, fy, 6, 6, k);
+    px(fx, fy, 6, 1, "#61646D");
+    px(fx, fy, 1, 6, "#61646D");
+  }
+}
+px(0, 0, LW, TOP, "#3A3D46");
+px(0, TOP - 2, LW, 2, "#2A2D35");
+for (var wx = 8; wx < LW - 12; wx += 26) {
+  px(wx, 2, 16, 6, "#8FA6B8");
+  px(wx, 2, 16, 1, "#B7CBD9");
+  px(wx + 8, 2, 1, 6, "#5C6E7C");
+}
+px(12, 1, 26, 6, "#E4E9EE");
+px(13, 2, 24, 4, "#D2D9E0");
+px(14, 3, 6, 1, "#9FB0BF");
+px(14, 5, 10, 1, "#9FB0BF");
+
+var HAIR = ["#4A3226", "#2A2320", "#7A4A2A", "#3A3A46"];
+var SHIRT = ["#5B8FD6", "#D2685E", "#63B37A", "#9B7BC9"];
+var OUTLINE = "#14161C";
+
+function person(x, y, i, busy) {
+  var bob = busy ? 1 : 0;
+  var y0 = y + bob;
+  px(x + 1, y0, 8, 14, OUTLINE);
+  px(x + 2, y0 + 14, 2, 2, OUTLINE);
+  px(x + 6, y0 + 14, 2, 2, OUTLINE);
+  px(x, y0 + 8, 1, 5, OUTLINE);
+  px(x + 9, y0 + 8, 1, 5, OUTLINE);
+  px(x + 1, y0 + 16, 8, 1, "rgba(20,22,28,0.32)");
+  px(x + 2, y0 + 1, 6, 4, HAIR[i % 4]);
+  px(x + 2, y0 + 5, 6, 4, "#F0CBA6");
+  px(x + 3, y0 + 6, 1, 1, "#26282E");
+  px(x + 6, y0 + 6, 1, 1, "#26282E");
+  px(x + 2, y0 + 9, 6, 5, SHIRT[i % 4]);
+  px(x + 2, y0 + 9, 6, 1, "rgba(255,255,255,0.18)");
+  px(x + 1, y0 + 9, 1, 4, "#F0CBA6");
+  px(x + 8, y0 + 9, 1, 4, "#F0CBA6");
+  px(x + 2, y0 + 14, 2, 2, "#2E3542");
+  px(x + 6, y0 + 14, 2, 2, "#2E3542");
+}
+function desk(x, y, sc, glow) {
+  px(x, y + 6, 20, 2, "#8A5A3B");
+  px(x, y + 8, 20, 1, "#5E3B26");
+  px(x + 1, y + 9, 1, 4, "#5E3B26");
+  px(x + 18, y + 9, 1, 4, "#5E3B26");
+  px(x + 5, y + 1, 10, 6, "#22262E");
+  px(x + 6, y + 2, 8, 4, sc);
+  if (glow) px(x + 6, y + 2, 8, 1, glow);
+  px(x + 9, y + 7, 2, 1, "#22262E");
+}
+
+/* 三个工位；第三个上面那颗灯是「在跑」，其余是「已回来」 */
+var desks = [
+  { cx: 26, cy: 30, st: MINT },
+  { cx: 78, cy: 30, st: "#5C8FA8" },
+  { cx: 130, cy: 30, st: "#9FF5CE", busy: true }
+];
+for (var di = 0; di < desks.length; di++) {
+  var d = desks[di];
+  desk(d.cx - 10, d.cy, d.st, d.busy ? "#DCFFF0" : null);
+  person(d.cx - 5, d.cy + 13, di, d.busy);
+}
+/* 一个走开的人在过道上 */
+person(58, 74, 3, false);
+person(112, 70, 1, false);
+
+g.restore();
+
+/* 名字 + 一个往上飘的气泡 */
+g.font = '9px ui-monospace, Menlo, Consolas, monospace';
+g.textAlign = "center";
+for (var li = 0; li < desks.length; li++) {
+  g.fillStyle = desks[li].busy ? MINT : "rgba(226,238,255,0.55)";
+  g.fillText(roles[li].name, OX + (desks[li].cx) * S, OY + (desks[li].cy + 32) * S);
+}
+g.fillStyle = "rgba(248,250,252,0.95)";
+rr(OX + 118 * S, OY + 2 * S, 96, 15, 3); g.fill();
+g.fillStyle = "#1B2027";
+g.font = '9px ui-monospace, Menlo, Consolas, monospace';
+g.fillText("已并进正文", OX + 118 * S + 48, OY + 2 * S + 10.5);
+g.textAlign = "left";
+g.restore();
+
+/* ══════════════ 右：蜘蛛网 ══════════════ */
+g.save();
+g.beginPath(); g.rect(SPLIT, STAGE_Y, W - SPLIT, STAGE_H); g.clip();
+/* 分界的一道白发丝 */
+px(SPLIT, STAGE_Y, 1, STAGE_H, "rgba(226,238,255,0.10)");
+
+var CX = SPLIT + (W - SPLIT) * 0.44;
+var CY = STAGE_Y + STAGE_H * 0.52;
+var RAD = Math.min((W - SPLIT) * 0.34, STAGE_H * 0.34);
+
+/* 岗位节点：固定角度，位置不随事件跳 */
+var nodes = [];
+for (var ni = 0; ni < roles.length; ni++) {
+  var a = (-90 + ni * (360 / roles.length)) * Math.PI / 180;
+  var nx0 = CX + Math.cos(a) * RAD * 1.30;
+  var ny0 = CY + Math.sin(a) * RAD * 0.92;
+  /* 卡片不能伸出场外：节点本身也一起收进来，丝跟着变短 */
+  nx0 = Math.max(SPLIT + 150, Math.min(W - 150, nx0));
+  ny0 = Math.max(STAGE_Y + 40, Math.min(STAGE_Y + STAGE_H - 44, ny0));
+  nodes.push({ x: nx0, y: ny0, role: roles[ni], angle: a });
+}
+
+/* 丝：一条 ask = 一根丝，一根丝由 3 缕组成（只是画得厚，不是三件事） */
+function strand(n, seed, state, u) {
+  var steps = 26;
+  var HAIRS = 5;
+  for (var hair = 0; hair < HAIRS; hair++) {
+    g.beginPath();
+    for (var i = 0; i <= steps; i++) {
+      var tt = i / steps;
+      var x = CX + (n.x - CX) * tt;
+      var y = CY + (n.y - CY) * tt;
+      /* 侧向偏移：中间鼓起来，像一根被拉紧的丝；种子只由事件 id 决定，每次一样 */
+      var bulge = Math.sin(Math.PI * tt) * (10 + (seed % 14));
+      var nx = -Math.sin(n.angle), ny = Math.cos(n.angle);
+      var off = bulge * ((hair - (HAIRS - 1) / 2) * 0.42 + ((seed % 7) - 3) * 0.12);
+      x += nx * off; y += ny * off;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    if (state === "err") {
+      g.strokeStyle = "rgba(255,107,129," + (0.20 + 0.30 * (1 - hair * 0.16)) + ")";
+      g.setLineDash([3, 4]);
+    } else if (state === "run") {
+      g.strokeStyle = "rgba(126,226,255," + (0.12 + 0.24 * (1 - hair * 0.16)) + ")";
+      g.setLineDash([]);
+    } else {
+      g.strokeStyle = "rgba(148,167,198," + (0.09 + 0.16 * (1 - hair * 0.16)) + ")";
+      g.setLineDash([]);
+    }
+    g.lineWidth = hair === 2 ? 1.5 : 0.9;
+    g.stroke();
+  }
+  g.setLineDash([]);
+
+  /* 在跑的那根：一颗光点正往岗位跑 */
+  if (state === "run") {
+    var tt2 = u;
+    var x2 = CX + (n.x - CX) * tt2, y2 = CY + (n.y - CY) * tt2;
+    var bulge2 = Math.sin(Math.PI * tt2) * (10 + (seed % 14));
+    var nx2 = -Math.sin(n.angle), ny2 = Math.cos(n.angle);
+    x2 += nx2 * bulge2 * ((seed % 7) - 3) * 0.12;
+    y2 += ny2 * bulge2 * ((seed % 7) - 3) * 0.12;
+    g.beginPath();
+    g.fillStyle = CYAN;
+    g.arc(x2, y2, 2.2, 0, Math.PI * 2); g.fill();
+    g.beginPath();
+    g.fillStyle = "rgba(126,226,255,0.18)";
+    g.arc(x2, y2, 6, 0, Math.PI * 2); g.fill();
+  }
+}
+
+for (var ai = 0; ai < asks.length; ai++) {
+  var a2 = asks[ai];
+  strand(nodes[a2.role], 13 + ai * 7, a2.state, 0.62);
+}
+
+/* 丝上的小签：真任务的前几个字（他的参考图里就是这种小牌） */
+var TAG_AT = [[0, 0.36], [2, 0.30], [5, 0.34], [7, 0.28]];
+g.font = '8px ui-monospace, Menlo, Consolas, monospace';
+for (var ti = 0; ti < TAG_AT.length; ti++) {
+  var idx = TAG_AT[ti][0], uu = TAG_AT[ti][1];
+  var nn = nodes[asks[idx].role];
+  var tx = CX + (nn.x - CX) * uu, ty = CY + (nn.y - CY) * uu;
+  var bulge3 = Math.sin(Math.PI * uu) * (10 + ((13 + idx * 7) % 14));
+  tx += -Math.sin(nn.angle) * bulge3 * (((13 + idx * 7) % 7) - 3) * 0.12;
+  ty += Math.cos(nn.angle) * bulge3 * (((13 + idx * 7) % 7) - 3) * 0.12;
+  var label = asks[idx].text;
+  if (label.length > 8) label = label.slice(0, 8) + "…";
+  var tw = g.measureText(label).width + 8;
+  g.fillStyle = "rgba(10,14,22,0.92)";
+  rr(tx - tw / 2, ty - 7, tw, 13, 3); g.fill();
+  g.strokeStyle = "rgba(126,226,255,0.28)"; g.lineWidth = 0.6; g.stroke();
+  g.fillStyle = "rgba(226,238,255,0.82)";
+  g.textAlign = "center";
+  g.fillText(label, tx, ty + 2.6);
+}
+g.textAlign = "left";
+
+/* 中枢 */
+var pulse = 1;
+g.beginPath(); g.fillStyle = "rgba(126,226,255,0.10)"; g.arc(CX, CY, 26, 0, Math.PI * 2); g.fill();
+g.beginPath(); g.fillStyle = "rgba(126,226,255,0.22)"; g.arc(CX, CY, 15, 0, Math.PI * 2); g.fill();
+g.beginPath(); g.fillStyle = MINT; g.arc(CX, CY, 7, 0, Math.PI * 2); g.fill();
+g.beginPath(); g.fillStyle = "#0B0C10"; g.arc(CX, CY, 3, 0, Math.PI * 2); g.fill();
+g.font = '9px ui-monospace, Menlo, Consolas, monospace';
+g.textAlign = "center";
+g.fillStyle = "rgba(159,245,206,0.75)";
+g.fillText("中枢", CX, CY + 24);
+g.textAlign = "left";
+
+/* 岗位节点：代号 + 名字 + 一句账 */
+for (var qi = 0; qi < nodes.length; qi++) {
+  var nd = nodes[qi];
+  var mine = asks.filter(function (x) { return x.role === qi; });
+  var running = mine.some(function (x) { return x.state === "run"; });
+  var failed = mine.some(function (x) { return x.state === "err"; });
+  var dot = running ? CYAN : (failed ? RED : FAINT);
+
+  g.beginPath(); g.fillStyle = dot; g.arc(nd.x, nd.y, 3, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.strokeStyle = "rgba(226,238,255,0.22)"; g.lineWidth = 0.8; g.arc(nd.x, nd.y, 7, 0, Math.PI * 2); g.stroke();
+
+  var left = nd.x < CX;
+  var w2 = 96, h2 = 30;
+  var bx = left ? nd.x - w2 - 12 : nd.x + 12;
+  var by = nd.y - h2 / 2;
+  g.fillStyle = "rgba(9,13,20,0.94)";
+  rr(bx, by, w2, h2, 4); g.fill();
+  g.strokeStyle = running ? "rgba(126,226,255,0.45)" : "rgba(226,238,255,0.12)";
+  g.lineWidth = 0.8; g.stroke();
+
+  g.textAlign = "left";
+  g.font = '9px ui-monospace, Menlo, Consolas, monospace';
+  g.fillStyle = FAINT; g.fillText(nd.role.code, bx + 8, by + 11);
+  g.font = '11px "Noto Sans SC", system-ui, sans-serif';
+  g.fillStyle = FG; g.fillText(nd.role.name, bx + 8, by + 23);
+  g.font = '9px ui-monospace, Menlo, Consolas, monospace';
+  g.textAlign = "right";
+  g.fillStyle = failed ? RED : DIM;
+  g.fillText(mine.length + " 派 · " + (failed ? "1 失败" : running ? "在跑" : "全回"), bx + w2 - 8, by + 23);
+  g.textAlign = "left";
+}
+
+/* 图例（一行，不写解释） */
+g.font = '9px ui-monospace, Menlo, Consolas, monospace';
+g.fillStyle = FAINT;
+g.fillText("一根丝 = 一次真的派活 · 光点 = 还在路上 · 红 = 失败", SPLIT + 18, STAGE_Y + STAGE_H - 12);
+g.restore();
+
+/* ══════════════ 底：读数条 ══════════════ */
+g.fillStyle = "rgba(5,8,15,0.92)";
+g.fillRect(0, H - HUD, W, HUD);
+px(0, H - HUD, W, 1, "rgba(226,238,255,0.075)");
+
+var cells = [
+  ["9", "派活", FG],
+  ["8", "回来", FG],
+  ["1", "失败", RED],
+  ["1", "在跑", MINT],
+  ["48.3k", "token", WARM]
+];
+var cw = W / cells.length;
+for (var ci = 0; ci < cells.length; ci++) {
+  var cx2 = ci * cw;
+  if (ci) px(cx2, H - HUD + 12, 1, HUD - 24, "rgba(226,238,255,0.06)");
+  g.textAlign = "center";
+  g.font = '20px ui-monospace, Menlo, Consolas, monospace';
+  g.fillStyle = cells[ci][2];
+  g.fillText(cells[ci][0], cx2 + cw / 2, H - HUD + 34);
+  g.font = '10px ui-monospace, Menlo, Consolas, monospace';
+  g.fillStyle = FAINT;
+  g.fillText(cells[ci][1], cx2 + cw / 2, H - HUD + 50);
+  g.textAlign = "left";
+}
+
+/* ══════════════ 暗角 ══════════════ */
+var vg = g.createRadialGradient(W * 0.5, H * 0.45, Math.min(W, H) * 0.35, W * 0.5, H * 0.45, Math.max(W, H) * 0.9);
+vg.addColorStop(0, "rgba(0,0,0,0)");
+vg.addColorStop(1, "rgba(0,0,0,0.55)");
+g.fillStyle = vg;
+g.fillRect(0, 0, W, H);
+</script>
+</body>
+</html>

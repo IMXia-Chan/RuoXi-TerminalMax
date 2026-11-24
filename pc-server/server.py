@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-若息 · Terminal Max —— 电脑端服务 (Wi-Fi 方案, 带图形前端)
+ConMarn —— 电脑端服务 (Wi-Fi 方案, 带图形前端)
 
 认证(每次连接都完整重新认证):
   1. 动态配对码:手机连上后,电脑前端/弹窗显示一个 6 位随机码(每次连接都变),
@@ -11,8 +11,8 @@
      (手机扫码,不再手动抄 32 位)。
 
 安全增强:
-  - 种子与一次性恢复码都用 Windows DPAPI 加密后落盘(secret.json),不存明文。
-  - 一次性恢复码:首次配对时显示一次,手机丢失/卸载后凭它重新配对,用一次即作废。
+  - 种子用 Windows DPAPI 加密后落盘(secret.json),不存明文。
+  - 不设恢复码:手机丢失/重装后在电脑端「重新配对」,旧种子即时作废。
   - 防暴力破解:连续 3 次 TOTP 码错误 -> 锁定,锁定时长指数翻倍(30s/60s/120s/240s…)。
   - 空闲断开已关闭:连接保持,直到手机主动断开或网络中断。
 
@@ -37,6 +37,16 @@ import subprocess
 import sys
 import threading
 import time
+
+# 配对用的密钥协商(ECDHE + HKDF + AES-GCM)。**不是可选依赖** ——
+# 没有它就没法配对,所以缺了要在启动时当场说清楚,而不是等到扫码那一刻才炸。
+try:
+    import pair_crypto
+except Exception as _e:  # pragma: no cover - 只在装漏依赖时走到
+    pair_crypto = None
+    _PAIR_CRYPTO_ERR = _e
+else:
+    _PAIR_CRYPTO_ERR = None
 
 # 媒体模块(手机摄像头/麦克风 -> 电脑虚拟设备)。可选依赖,缺了只影响媒体功能,不影响鼠标控制。
 try:
@@ -66,6 +76,24 @@ if getattr(sys, "frozen", False):
 else:
     HERE = os.path.dirname(os.path.abspath(__file__))
 SECRET_PATH = os.path.join(HERE, "secret.json")
+
+# AI 工具执行器(AI 指令 -> 打开应用/切窗口/媒体控制/截图/点击)。可选依赖:
+# 缺了只影响 AI 助手,不影响鼠标/文件互传。冻结打包后 sys.path 不一定含 exe 目录,先补一下。
+try:
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
+    import ai_tools
+except Exception:
+    ai_tools = None
+
+# 手机键盘那条路要问 UIA「这一点上是不是输入框」。和 ai_tools 一样是**可选**的:
+# 没有它,「点电脑的输入框自动弹键盘」这个功能不生效,但鼠标/镜像/文件互传一切照旧。
+try:
+    if HERE not in sys.path:
+        sys.path.insert(0, HERE)
+    import uia
+except Exception:
+    uia = None
 
 PIN_TTL = 120          # 动态配对码有效期(秒)
 AUTH_TIMEOUT = 180     # 认证阶段总超时(秒)
@@ -103,11 +131,35 @@ LOG_PATH = os.path.join(HERE, "server.log")
 _log_lock = threading.Lock()
 
 
+def _redact_log(msg):
+    """落进 server.log 之前的**最后一道** —— 有形状的值不许写下去。
+
+    ★★ **闸装在这一格,不装在每个调用点。** 这是全项目**唯一**一处真的往
+       `server.log` 写字的地方,所以装在这儿之后,**以后谁新加一条日志,
+       他默认就是安全的**(fail closed)。装在各调用点是反过来的:
+       加一条新的就多一个漏的机会,而且漏了不报错。
+
+    ★★ **失败方向是「不写」,不是「照写」。**
+       遮字这一步真出错时,写下去的是一句「我遮不了」,而**不是原文** ——
+       遮不住就宁可这条日志没有。同 `teacherBodyIsClean` / `ApiMath.sendsOk` 那条口径:
+       不是「记得别发」,是**发了就发不出去**。
+       (写一句「失败」而不是静默丢掉,是为了它**不静默** —— 这个项目的头号敌人。)
+    """
+    if ai_tools is None:
+        # ai_tools 整块没加载 ⇒ AI 那条路本来就没有活动可记;鼠标/键盘/文件那几条
+        # 日志里没有值。(它有单独的、更响的一条告警,见启动横幅那里。)
+        return msg
+    try:
+        return ai_tools.redact_all(msg)[0]
+    except Exception as e:
+        return "!! 日志遮字失败(%s),这一条内容不写" % type(e).__name__
+
+
 def _log_line(msg):
     try:
         with _log_lock:
             with open(LOG_PATH, "a", encoding="utf-8") as fp:
-                fp.write("%s %s\n" % (time.strftime("%H:%M:%S"), msg))
+                fp.write("%s %s\n" % (time.strftime("%H:%M:%S"), _redact_log(msg)))
     except Exception:
         pass
 
@@ -261,6 +313,66 @@ if IS_WINDOWS:
     user32.SendInput.argtypes = [ctypes.c_uint, ctypes.POINTER(INPUT), ctypes.c_int]
     user32.SendInput.restype = ctypes.c_uint
 
+    # ---- 2026-10-06:问 Windows「一个按键现在会落到哪儿」 ----
+    # 只有 [key_tap] 用得上。这里的每一项都必须显式写 argtypes,否则 64 位窗口句柄
+    # 会被当成 int 截断,查出来的是一个不存在的窗口(而且不报错)。
+    class GUITHREADINFO(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", ctypes.c_ulong),
+            ("flags", ctypes.c_ulong),
+            ("hwndActive", ctypes.c_void_p),
+            ("hwndFocus", ctypes.c_void_p),
+            ("hwndCapture", ctypes.c_void_p),
+            ("hwndMenuOwner", ctypes.c_void_p),
+            ("hwndMoveSize", ctypes.c_void_p),
+            ("hwndCaret", ctypes.c_void_p),     # ★ 非 0 = 那边有个正在输入的框
+            ("rcCaret", ctypes.c_long * 4),     # RECT
+        ]
+
+    user32.GetForegroundWindow.restype = ctypes.c_void_p
+    user32.GetWindowTextLengthW.argtypes = [ctypes.c_void_p]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.GetWindowTextW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.GetClassNameW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
+    user32.GetClassNameW.restype = ctypes.c_int
+    user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p,
+                                                ctypes.POINTER(ctypes.c_uint32)]
+    user32.GetWindowThreadProcessId.restype = ctypes.c_uint32
+    user32.GetGUIThreadInfo.argtypes = [ctypes.c_uint32, ctypes.POINTER(GUITHREADINFO)]
+    user32.GetGUIThreadInfo.restype = ctypes.c_int
+
+
+def _key_landing():
+    """一个按键**此刻**会落到哪儿:前台窗口 + 它有没有一个正在输入的框。
+
+    ★ 为什么这一行非记不可 —— 按键和鼠标不是一回事:
+      鼠标点在哪,肉眼看得到;而按键是打到**当前有焦点的那个窗口**里的。
+      那儿要是没有输入框(浏览器页面、桌面、只读窗口),按下去**一点动静都没有**,
+      手机那边看到的样子和「这个按钮坏了」完全一样。
+      `光标=没有` 就是「你的退格没人接」—— 这是唯一能事后分辨两者的东西。
+    """
+    if not IS_WINDOWS:
+        return "-"
+    try:
+        fg = user32.GetForegroundWindow()
+        if not fg:
+            return "没有前台窗口"
+        n = user32.GetWindowTextLengthW(fg)
+        buf = ctypes.create_unicode_buffer(n + 1)
+        user32.GetWindowTextW(fg, buf, n + 1)
+        cls = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(fg, cls, 256)
+        tid = user32.GetWindowThreadProcessId(fg, None)
+        gti = GUITHREADINFO()
+        gti.cbSize = ctypes.sizeof(GUITHREADINFO)
+        caret = "查不了"
+        if user32.GetGUIThreadInfo(tid, ctypes.byref(gti)):
+            caret = "有" if gti.hwndCaret else "没有"
+        return "%r(%s) 光标=%s" % (buf.value or "(无标题)", cls.value, caret)
+    except Exception as e:
+        return "读不出来(%s)" % e
+
 
 def type_text(text):
     """把文本作为键盘输入打到电脑当前焦点处(Unicode,正确处理中文/emoji)。"""
@@ -293,6 +405,63 @@ def type_text(text):
         user32.SendInput(n * 2, arr, ctypes.sizeof(INPUT))
     except Exception:
         pass
+
+
+# ---- 单个按键(退格 / 回车 / 方向键…) ---------------------------------------
+#
+# ★ 为什么不能拿 type_text 顶:它走的是 KEYEVENTF_UNICODE,发的是**字符**码点。
+#   退格、回车、Tab 不是字符,它们在键盘上是**虚拟键**(VK_BACK=8 / VK_RETURN=13)。
+#   试着用 type_text("\b") 发,过去的是一串 Unicode 里的退格**字符**(U+0008)——
+#   记事本会无视它,Chrome 会画一个豆腐块。看着「什么都没发生」,
+#   于是这种 bug 会被记成「手机键盘坏了」。
+#
+# 手机端需要它只有两处:退格(改错字)和回车(提交)。所以这张表只收常见的几个,
+# 不做一个通用的键盘。**白名单,不是通道** —— 手机只能按这几个键。
+VK_KEYS = {
+    8: 0x08,     # Backspace
+    9: 0x09,     # Tab
+    13: 0x0D,    # Enter
+    27: 0x1B,    # Esc
+    37: 0x25, 38: 0x26, 39: 0x27, 40: 0x28,   # 方向键
+    46: 0x2E,    # Delete
+}
+
+
+def key_tap(vk):
+    """按一下(按下+抬起)一个虚拟键。vk 必须在 [VK_KEYS] 里。
+
+    → True = **真的按下去了**;False = 没按下去(不在白名单,或被系统挡下)。
+
+    ★★ 2026-10-06:这里原来把 `SendInput` 的返回值**扔了** —— 只要函数没抛异常就回 True。
+      而 `SendInput` 被挡下时**不抛异常,只返回 0**:于是「一个键都没按下去」
+      被原样报成「发出去了」,手机那边安安静静,用户看到的就是「按了没用」。
+      ★ 鼠标是同一套机制,但两者的可见性天差地别 —— **鼠标动没动你看得见,按键没人接你看不见**。
+    """
+    vk = VK_KEYS.get(vk)
+    if vk is None:
+        return False
+    if not IS_WINDOWS:
+        print(f"  [key] vk={vk}")
+        return True
+    # ★ 先问「它会落到哪儿」,再按。按键发出去本身没有回执,只有这一行事后能分辨
+    #   「电脑确实按了,只是那儿没有一个能删的框」和「根本没按下去」。
+    landing = _key_landing()
+    arr = (INPUT * 2)()
+    arr[0].type = INPUT_KEYBOARD
+    arr[0].union.ki.wVk = vk
+    arr[0].union.ki.wScan = 0
+    arr[0].union.ki.dwFlags = 0
+    arr[1].type = INPUT_KEYBOARD
+    arr[1].union.ki.wVk = vk
+    arr[1].union.ki.wScan = 0
+    arr[1].union.ki.dwFlags = KEYEVENTF_KEYUP
+    try:
+        sent = user32.SendInput(2, arr, ctypes.sizeof(INPUT))
+    except Exception as e:
+        _log_line("[key] vk=%#x 发送时抛异常: %s" % (vk, e))
+        return False
+    _log_line("[key] vk=%#x SendInput=%s 落到 %s" % (vk, sent, landing))
+    return sent == 2
 
 
 # 流式画面缩小后的尺寸(手机端按这个分辨率映射坐标)与真实屏幕尺寸。
@@ -339,6 +508,44 @@ def abs_click(x, y, flags):
     events[1].type = INPUT_MOUSE
     events[1].union.mi.dwFlags = flags
     user32.SendInput(2, events, ctypes.sizeof(INPUT))
+
+
+def _ensure_screen_size():
+    """保证 REAL_W/REAL_H 有值。
+
+    _abs_coords 依赖它俩;而 AI 点击可能发生在「从没开过镜像」的情况下(此时它们还是 0),
+    那样算出来的绝对坐标会是 (0,0),点会飞到屏幕左上角。这里问一次系统。
+    """
+    global REAL_W, REAL_H
+    if REAL_W > 1 and REAL_H > 1:
+        return
+    if not IS_WINDOWS:
+        return
+    try:
+        REAL_W = user32.GetSystemMetrics(0) or REAL_W   # SM_CXSCREEN
+        REAL_H = user32.GetSystemMetrics(1) or REAL_H   # SM_CYSCREEN
+    except Exception:
+        pass
+
+
+def ai_click_real(x, y):
+    """AI 点击:入参是**真实屏幕像素**(AI 端把截图坐标按 screen_w/screen_h 换算后的结果)。
+
+    abs_click 吃的是「流式坐标」,内部还会再乘一次 REAL/STREAM 比例 —— 所以这里先反向换算,
+    免得二次缩放把点带偏(开着镜像时才有 STREAM_W;没开镜像就是真实坐标,原样传)。
+    """
+    if not IS_WINDOWS:
+        return
+    _ensure_screen_size()
+    sx, sy = int(x), int(y)
+    if STREAM_W > 0 and REAL_W > 0:
+        sx = int(sx * STREAM_W / REAL_W)
+        sy = int(sy * STREAM_H / REAL_H)
+    _, down, up = _BUTTON_FLAGS[0]     # 左键
+    abs_click(sx, sy, down)
+    time.sleep(0.04)                   # DOWN/UP 之间留一点间隔,太紧某些控件识别不到点击
+    abs_click(sx, sy, up)
+    _log_line("[ai] click 真实(%d,%d) -> 流(%d,%d)" % (int(x), int(y), sx, sy))
 
 
 def get_cursor_stream_pos():
@@ -545,32 +752,44 @@ def dpapi_decrypt(data: bytes) -> bytes:
         return data
 
 # ---------------------------------------------------------------------------
-# 存储:种子 + 一次性恢复码(DPAPI 加密落盘)
+# 存储:种子(DPAPI 加密落盘)
 # ---------------------------------------------------------------------------
 _store_lock = threading.Lock()
-_store = {"secret": None, "recovery": None}  # 内存缓存
+_store = {"secret": None}  # 内存缓存
 
 
 def _read_store_from_disk():
-    """从 secret.json 读取并 DPAPI 解密。返回 dict。"""
+    """从 secret.json 读取并 DPAPI 解密。返回 dict。
+
+    ★★ 2026-11-06:**只存种子,不再存恢复码**。
+      恢复码等于一把**长期有效的备用钥匙**:谁拿到它(以及电脑的配对码)
+      就能连上这台电脑、动鼠标键盘。他的原话是「那这确实不安全啊」。
+      现在的做法和 authenticator 一样 —— **没有备用钥匙**:
+      手机上的种子没了,就在电脑上重新登记一次(电脑弹二维码、手机扫)。
+      那个动作要求「人在电脑前 + 过电脑那道登录 PIN」,和首次配对是同一个门槛。
+
+    ★ 旧盘上如果还有 `recovery_code_enc`,这里**顺手把它抹掉**(重写一次文件)——
+      不然它会在硬盘上一直躺到下次配对。
+    """
     if not os.path.exists(SECRET_PATH):
-        return {"secret": None, "recovery": None}
+        return {"secret": None}
     try:
         with open(SECRET_PATH, "r", encoding="utf-8") as f:
             raw = json.load(f)
     except Exception:
-        return {"secret": None, "recovery": None}
-    out = {"secret": None, "recovery": None}
+        return {"secret": None}
+    out = {"secret": None}
     if raw.get("totp_secret_enc"):
         try:
             out["secret"] = dpapi_decrypt(base64.b64decode(raw["totp_secret_enc"])).decode("ascii")
         except Exception:
             out["secret"] = None
-    if raw.get("recovery_code_enc"):
+    if "recovery_code_enc" in raw:
         try:
-            out["recovery"] = dpapi_decrypt(base64.b64decode(raw["recovery_code_enc"])).decode("ascii")
+            _write_store_to_disk(out)
+            _log_line("[pair] 盘上那份恢复码已抹掉(改用重新配对,不再留备用钥匙)")
         except Exception:
-            out["recovery"] = None
+            pass
     return out
 
 
@@ -579,10 +798,6 @@ def _write_store_to_disk(store):
     if store.get("secret"):
         raw["totp_secret_enc"] = base64.b64encode(
             dpapi_encrypt(store["secret"].encode("ascii"))
-        ).decode("ascii")
-    if store.get("recovery"):
-        raw["recovery_code_enc"] = base64.b64encode(
-            dpapi_encrypt(store["recovery"].encode("ascii"))
         ).decode("ascii")
     tmp = SECRET_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -601,33 +816,86 @@ def get_secret():
         return _store["secret"]
 
 
-def get_recovery():
-    with _store_lock:
-        return _store["recovery"]
-
-
-def save_pair(secret, recovery):
-    """原子保存新种子 + 新恢复码(覆盖旧的,旧的恢复码随覆盖自然作废)。"""
+def save_pair(secret):
+    """原子保存新种子(覆盖旧的)。"""
     global _store
     with _store_lock:
-        _store = {"secret": secret, "recovery": recovery}
+        _store = {"secret": secret}
         _write_store_to_disk(_store)
 
 
-def check_recovery(code):
-    """校验一次性恢复码:匹配即有效。"""
+def forget_pair():
+    """把配对彻底忘掉(删盘上那份,清内存)。下一次连接就是首次配对。
+
+    ★ 屏幕上要有明确的一句「手机要重新扫码」:忘掉之后,**当前连着的那台手机
+      也立刻用不了**,而它不会自己好 —— 得扫码。
+    """
+    global _store
     with _store_lock:
-        return bool(_store["recovery"]) and hmac.compare_digest(_store["recovery"], code)
+        _store = {"secret": None}
+        try:
+            if os.path.exists(SECRET_PATH):
+                os.remove(SECRET_PATH)
+        except Exception:
+            pass
 
 
 def generate_secret():
-    """生成 TOTP 种子(16 字节 = 32 hex 字符,放进二维码)。"""
+    """生成 TOTP 种子(16 字节 = 32 hex 字符)。"""
     return secrets.token_hex(16)
 
 
-def generate_recovery():
-    """生成一次性恢复码(8 位数字,好抄写)。"""
-    return f"{secrets.randbelow(100000000):08d}"
+def _run_setup(f):
+    """一次配对登记:扫码 → 临时密钥协商 → **加密**送出种子。成功返回种子,失败返回 None。
+
+    ★★ 2026-11-06:二维码里**不再装钥匙**,只装一次性公钥。
+      他问「能不能动态不能静态」—— 静态的东西一旦被人拍到就永久有效;
+      而这个二维码现在拍到也没用:没有电脑那边的临时私钥,算不出共享密钥。
+      具体见 pair_crypto.py 的模块注释。
+
+    协议(和手机端 TouchpadClient 一一对应):
+        电脑 → SETUP
+        手机 → KEY <b64url 公钥点 65 字节>
+        电脑 → SEED <b64url (nonce||密文||tag)>
+        之后手机照常发 TOTP,验过了才把新种子落盘(save_pair)。
+    """
+    if pair_crypto is None:
+        _log_line("[pair] 缺少 cryptography 库,配对做不了(装一下: pip install cryptography): %s"
+                  % _PAIR_CRYPTO_ERR)
+        f.write("ERR setup unavailable\n")
+        f.flush()
+        return None
+
+    pending = generate_secret()
+    priv, point = pair_crypto.new_ephemeral()
+    url = pair_crypto.payload(point)
+    _log_line("[pair] 配对码对了,开始等手机扫码领种子")
+    # 界面上画的是 url,不是种子 —— 种子从头到尾没离开过这个进程。
+    _emit("setup", qr=url)
+    f.write("SETUP\n")
+    f.flush()
+
+    line = _read_line(f)
+    if not line:
+        return None
+    if not line.startswith("KEY "):
+        _log_line("[pair] 等到的不是公钥,配对中断(收到:%r)" % line[:40])
+        # 老版本手机不知道要回 KEY(它等着电脑直接给种子)。说清楚,别让它以为
+        # 是「种子格式错误」然后一直重试。
+        f.write("ERR need key\n")
+        f.flush()
+        return None
+    try:
+        peer_point = pair_crypto.decode_point(line[4:].strip())
+        key = pair_crypto.derive_key(priv, peer_point, point)
+        blob = pair_crypto.seal(key, pending.encode("ascii"))
+    except Exception:
+        f.write("ERR bad key\n")
+        f.flush()
+        return None
+    f.write("SEED %s\n" % pair_crypto.encode(blob))
+    f.flush()
+    return pending
 
 # ---------------------------------------------------------------------------
 # 动态配对码(全局单一,每次新连接覆盖旧的)
@@ -788,9 +1056,47 @@ if files is not None:
     except Exception:
         pass
 
+# 电脑端 App 的本地桥接层(conmarn_app.py ↔ server.py)。
+# ★ 必须 bind **正在运行的这个模块**:server.py 以 __main__ 运行,app_bridge 里
+#   若自己 `import server` 会得到第二份全局状态(空的连接表、没有配对码)。
+#   桥接层只读状态、只调现成函数,不改事件的生产与消费。
+try:
+    import app_bridge
+    app_bridge.bind(sys.modules[__name__])
+except Exception:
+    app_bridge = None
+
+
+# ★★ **凭证不进日志** —— 2026-10-06。
+#
+# 走 `_emit` 的事件里带着这台电脑的**钥匙**:
+#   `pairing` → 6 位**配对码**(谁拿到它 + 屏幕上的二维码就能配对)。
+# 它**必须原样进 GUI**(要显示给你看),但**一个字符都不该落进 `server.log`**。
+#
+# ★ 2026-11-06 两次收窄:
+#   - 恢复码那一项删了 —— 它已经不存在了(改用「重新配对」);
+#   - `setup` 也不再是凭证:**二维码里只有一次性的临时公钥**(见 pair_crypto.py),
+#     拍到它解不开种子,所以它可以进日志,方便事后查「配对是怎么失败的」。
+#     它要是哪天又变回种子,`test_server.py` 那条断言会当场红。
+#
+# ★ 所以拆成两半:**GUI 拿原值,日志拿占位**。GUI 那条路一个字不动。
+_CREDENTIAL_FIELDS = ("pin", "secret")
+
+
+def _emit_log_fields(data):
+    """要写进日志的那一份:凭证换成占位,**别的一个字段都不动**。
+
+    ★ 有凭证就**一定**留一句「这里本来有东西」—— 不能整条静默消失,
+      否则事后会以为那条事件没发生过。
+    """
+    if not any(k in data for k in _CREDENTIAL_FIELDS):
+        return data
+    return {k: ("<凭证:只在界面上显示,不落日志>" if k in _CREDENTIAL_FIELDS else v)
+            for k, v in data.items()}
+
 
 def _emit(kind, **data):
-    _log_line("[emit] %s %s" % (kind, data))
+    _log_line("[emit] %s %s" % (kind, _emit_log_fields(data)))
     if GUI_MODE or BACKGROUND_MODE:
         # GUI:配对码在主面板显示;后台模式:由 BackgroundHost 瞬态弹窗显示
         gui_queue.put({"kind": kind, **data})
@@ -803,28 +1109,19 @@ def _cli_emit(kind, **data):
         pin = data["pin"]
         print()
         print("  *" * 20)
-        print(f"  *  若息 配对码: {pin}   *")
+        print(f"  *  ConMarn 配对码: {pin}   *")
         print("  *" * 20)
-        _cli_popup(f"若息 配对码: {pin}\n\n请在手机端输入这个码。\n({PIN_TTL} 秒内有效)")
+        _cli_popup(f"ConMarn 配对码: {pin}\n\n请在手机端输入这个码。\n({PIN_TTL} 秒内有效)")
     elif kind == "setup":
-        secret = data["secret"]
-        recovery = data["recovery"]
-        grouped = "-".join(secret[i:i + 4] for i in range(0, len(secret), 4))
+        # 这里给的是**一次性公钥**,不是种子(见 pair_crypto.py)
+        qr_text = data["qr"]
         print()
         print("  *" * 30)
-        print("  首次配对 —— 请用手机扫描二维码或手动输入种子:")
-        print(f"      {grouped}")
-        print(f"  恢复码(请妥善保存,手机丢失/卸载时用): {recovery}")
+        print("  配对 —— 请用手机扫描二维码;扫不了就抄下面这一行:")
+        print(f"      {qr_text}")
+        print("  (没有恢复码:手机重装后在手机上点「重新配对」,这里会再弹一次)")
         print("  *" * 30)
-        if segno is None:
-            _cli_popup(
-                f"首次配对种子:\n\n{grouped}\n\n恢复码(保存好): {recovery}"
-            )
-        else:
-            _cli_popup(
-                f"首次配对 —— 手机扫描二维码,或手动输入种子:\n\n{grouped}\n\n"
-                f"恢复码(请妥善保存,手机丢失/卸载时用): {recovery}"
-            )
+        _cli_popup(f"配对 —— 手机扫描二维码,或把下面这一行抄进手机:\n\n{qr_text}")
     elif kind == "connected":
         print(f"[+] 客户端 {data.get('addr', '?')} 认证通过,进入控制模式")
     elif kind == "disconnected":
@@ -843,7 +1140,7 @@ def _cli_popup(text):
                 ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint,
             ]
             user32.MessageBoxW.restype = ctypes.c_int
-            user32.MessageBoxW(None, text, "若息 — 配对", 0x40)
+            user32.MessageBoxW(None, text, "ConMarn — 配对", 0x40)
         except Exception:
             pass
 
@@ -967,6 +1264,228 @@ def _cmd_ls(f, write_lock, relpath_b64):
     try:
         with write_lock:
             f.write("LSR %s\n" % _b64u(payload))
+            f.flush()
+    except Exception:
+        pass
+
+
+def _cmd_ai(f, write_lock, payload_b64):
+    """手机端 AI 编排器请求执行一个工具。回一行 AIR <b64 json>。
+
+    请求:{"tool": "open_app", "args": {...}, "id": N}
+    响应:{"id": N, "ok": true, "result": {...}}   —— 失败时 ok=false + error
+    screenshot 的 result 里带 {"image": "<b64 jpeg>", "w","h","screen_w","screen_h"}。
+    """
+    try:
+        call = json.loads(_b64d(payload_b64))
+    except Exception:
+        call = None
+    if not isinstance(call, dict):
+        _ai_reply(f, write_lock, {"id": None, "ok": False, "error": "AI 请求不是合法 JSON"})
+        return
+
+    req_id = call.get("id")
+    tool = str(call.get("tool") or "")
+    if ai_tools is None:
+        _ai_reply(f, write_lock, {"id": req_id, "ok": False,
+                                  "error": "电脑端没装 AI 模块(ai_tools.py 缺失或导入失败)"})
+        return
+
+    # ★ **先遮,后截** —— 顺序不能反。
+    #   `type` 的内容、`search` 的查询词、`click_ui` 的控件名都可能是号码。
+    #   先截再遮的话,一长串数字被砍成 15 位正好会撞上「15 位卡号」那条正则
+    #   (`(?!\d)` 在串尾是成立的),而**截断后的前缀过不了 Luhn 不代表它就安全** ——
+    #   前 15 位本身就是一段真号码。标记比它替掉的那串短,所以先遮不会撑爆长度。
+    _args_txt, _args_kinds = ai_tools.redact_all(
+        json.dumps(call.get("args") or {}, ensure_ascii=False))
+    _log_line("[ai] %s %s%s" % (
+        tool, _args_txt[:200],
+        (" 遮=%s" % ",".join(_args_kinds)) if _args_kinds else ""))
+    t0 = time.time()
+    result = ai_tools.execute(call, click_fn=ai_click_real, type_fn=type_text,
+                              scroll_fn=scroll_wheel)
+    if not isinstance(result, dict):
+        result = {"ok": False, "error": "工具返回了非法结果"}
+    # 成功那一行也要带上证据,别只写 ok=True。2026-10-03 的翻车现场里
+    # `[ai] click_ui -> ok=True 11565ms` 是唯一的记录 —— 点在了哪个窗口的哪个
+    # 控件上,事后一个字都查不到。成功路径的日志比失败路径更需要证据:
+    # 失败至少还带着 error 文案,而**假阳性成功**什么线索都不留。
+    extra = ""
+    if result.get("ok"):
+        # ★ verified / changed_px 是 2026-10-03 补的:`type` 现在会**验货**,
+        # 而「验没验、拿什么验的、证据有多强」正是事后唯一能分辨
+        # 「真成功」和「假阳性成功」的东西。via="屏幕变化" 只说了走哪条路,
+        # 没说那条路走得踏不踏实 —— changed_px 才是那个数。
+        for k in ("clicked_in", "control", "window", "clicked", "launched",
+                  "focused", "searched", "action", "via",
+                  "verified", "changed_px"):
+            v = result.get(k)
+            if v not in (None, "", [], {}):
+                # ★ 回执里的字段同样过一遍(`searched` 是查询词、`control` 是控件名、
+                #   `window` 是窗口标题 —— 标题本身就可以正好是一串号码)。
+                extra += " %s=%s" % (
+                    k, ai_tools.redact_all(json.dumps(v, ensure_ascii=False))[0][:80])
+    _log_line("[ai] %s -> ok=%s %.0fms %s" % (
+        tool, result.get("ok"), (time.time() - t0) * 1000.0,
+        (str(result.get("error", ""))[:160] if not result.get("ok") else extra)))
+
+    ok = bool(result.pop("ok", False))
+    _ai_reply(f, write_lock, {"id": req_id, "ok": ok,
+                              **({"result": result} if ok else {"error": result.get("error", "执行失败"),
+                                                                **{k: v for k, v in result.items() if k != "error"}})})
+
+
+def _ai_reply(f, write_lock, obj):
+    try:
+        with write_lock:
+            f.write("AIR %s\n" % _b64u(json.dumps(obj, ensure_ascii=False)))
+            f.flush()
+    except Exception:
+        pass
+
+
+def _cmd_hand(f, write_lock, payload_b64):
+    """手机端问「你是谁、你会什么」。回一行 HARR <b64 json>。
+
+    请求:{} —— 现在不收任何参数。留着一个 b64 负载是为了让这条命令和别的
+    命令**同形**(`CMD <seq> <负载> <签名>`),以后要问「你支不支持 X」时
+    不用改协议形状。
+    响应:{"ok": true, "hand": {...}} —— 内容见 ai_tools.hand_info
+
+    ★ 这条命令存在的理由:在这之前,「电脑会什么」是**手抄在手机端 Kotlin 里**的。
+    电脑加一个工具、忘了同步那份手抄清单,模型就永远不知道那个工具存在 ——
+    而且不报错、不崩,只是能力静默少一块。
+    """
+    if ai_tools is None:
+        _hand_reply(f, write_lock, {"ok": False,
+                                    "error": "电脑端没装 AI 模块(ai_tools.py 缺失或导入失败)"})
+        return
+    try:
+        info = ai_tools.hand_info()
+    except Exception as e:
+        _hand_reply(f, write_lock, {"ok": False, "error": "自述失败: %s" % e})
+        return
+    _log_line("[hand] 自述: %s(%s) 模型可见工具 %d 个,指纹 %s"
+              % (info.get("name"), info.get("id"), len(info.get("tools") or []),
+                 info.get("version")))
+    _hand_reply(f, write_lock, {"ok": True, "hand": info})
+
+
+def _hand_reply(f, write_lock, obj):
+    try:
+        with write_lock:
+            f.write("HARR %s\n" % _b64u(json.dumps(obj, ensure_ascii=False)))
+            f.flush()
+    except Exception:
+        pass
+
+
+def _cmd_hit(f, write_lock, payload_b64):
+    """HIT <seq> <b64 {"x":..,"y":..}> → HITR <b64 json>。
+
+    ★ 手机端「点电脑的输入框 → 手机上直接弹输入法」的那只眼睛。
+
+    手机刚在镜像上点了一下(那一击已经落到电脑上了),现在问一句:
+    **那一点上是什么控件、它能不能打字。**
+
+    为什么必须问电脑,不能手机自己猜:镜像是**像素**,输入框是**控件**。
+    同一个长方形,在计算器里是只读显示,在聊天窗口里是能打字的 ——
+    这件事在图像上分不出来,只有在控件树上才有答案。
+
+    响应:{"ok": true, "at": {...}, "focus": {...}}
+      at    —— 点在哪儿,那儿是什么(UIA FromPoint)
+      focus —— 现在谁有键盘焦点(UIA FocusedElement)
+      两个都给,手机端**任一 editable 就算能打字**:
+      有些应用点一下不聚焦,有些控件 FromPoint 拿不到自己内部的输入框
+      (浏览器里的 <input> 就是),单靠一条都会漏。
+
+    ★ 失败一律 ok=false,**手机端就当成一次普通的点击**(见那边
+      onHitProbe)。这条路的失败是**常态**,不是异常:微信那种自绘界面
+      整个窗口 UIA 只有一个后代元素;手机端还没连上电脑时也没有 UIA 通道。
+      猜错的代价是「用户只想点个按钮,却弹出一块键盘」—— 比漏判烦人得多,
+      所以**宁可漏,不可错**(和 FastPath 同一条规矩)。
+    """
+    if uia is None:
+        _hit_reply(f, write_lock, {"ok": False, "error": "电脑端没有 UIA 模块"})
+        return
+    try:
+        req = json.loads(_b64d(payload_b64) or "{}")
+        x = int(req.get("x", 0))
+        y = int(req.get("y", 0))
+    except Exception:
+        _hit_reply(f, write_lock, {"ok": False, "error": "参数读不出来"})
+        return
+
+    # ★★ 手机给的是**镜像画面坐标**,UIA 要的是**真实屏幕坐标** —— 必须换算。
+    #
+    # 这一行是 2026-10-04 深夜补的,补的是一个**没测到**的 bug:
+    # 手机端的 `ScreenView.toScreen()` 交出来的是它那张 JPEG 上的像素
+    # (见 ScreenView.kt 的 `screenW/screenH`),而 `A` 那条点击命令是
+    # `_abs_coords()` 把它换算成真实屏幕之后才点的 —— **探测也得走同一次换算**,
+    # 否则两组坐标只在「镜像档位 = 原生分辨率」时才恰好相等。
+    #
+    # 为什么这个 bug 危险:症状是「明明点在输入框上,键盘不弹」,而它
+    # **不报错、不崩、日志里也看不出** —— 只是探测点偏了几百像素,问到的是
+    # 桌面或者别的控件。而 `test_hit_probe.py` 测不出来:它直接调 `uia.probe`,
+    # 用的是真实坐标,整条命令的换算根本没进它的视野。
+    # 这是这个项目的老病:**光测了零件,没测接头。**
+    _ensure_screen_size()
+    if STREAM_W > 0 and REAL_W > 0:
+        x = int(x * REAL_W / STREAM_W)
+        y = int(y * REAL_H / STREAM_H)
+
+    try:
+        r = uia.probe(x, y)
+    except Exception as e:
+        _hit_reply(f, write_lock, {"ok": False, "error": "探测失败: %s" % e})
+        return
+    # 写一行日志:这条路的失败**本来是完全静默的**(手机端拿不到回包就默默什么都不做),
+    # 而「她点了输入框键盘却没弹」是用户唯一会看见的症状。有这行才分得清
+    # 「电脑说不能打字」和「电脑根本没答话」。
+    _log_line("[hit] 手机(%d,%d) -> 探测(%d,%d) editable=%s cursor=%s" % (
+        int(req.get("x", 0)), int(req.get("y", 0)), x, y,
+        bool(r.get("editable")), r.get("cursor")))
+    _hit_reply(f, write_lock, r)
+
+
+def _hit_reply(f, write_lock, obj):
+    try:
+        with write_lock:
+            f.write("HITR %s\n" % _b64u(json.dumps(obj, ensure_ascii=False)))
+            f.flush()
+    except Exception:
+        pass
+
+
+def _cmd_key(f, write_lock, payload_b64):
+    """KEY <seq> <b64 {"vk":8}> → KEYR <b64 json>。
+
+    手机键盘上的退格 / 回车。**按键白名单在 VK_KEYS 里**(见那个表的说明:
+    为什么不能用 type_text 发退格)。不在白名单里的 vk 一律拒绝并说清楚 ——
+    手机端会把这个回执显示成「这个键电脑不认」,而不是静默什么都不发生。
+    """
+    try:
+        req = json.loads(_b64d(payload_b64) or "{}")
+        vk = int(req.get("vk", 0))
+    except Exception:
+        _key_reply(f, write_lock, {"ok": False, "error": "参数读不出来"})
+        return
+    ok = key_tap(vk)
+    # ★ 2026-10-06:两句失败原因必须分开 —— 原来不管什么原因都回「不在名单里」,
+    #   而「名单里有、只是没按下去」也被说成那样,是**替电脑编了一句假的**。
+    if ok:
+        why = None
+    elif vk not in VK_KEYS:
+        why = "键 %d 不在电脑认的名单里" % vk
+    else:
+        why = "电脑没接住这个按键(前台那个窗口不让外部按键进去)"
+    _key_reply(f, write_lock, {"ok": True, "sent": ok, "error": why})
+
+
+def _key_reply(f, write_lock, obj):
+    try:
+        with write_lock:
+            f.write("KEYR %s\n" % _b64u(json.dumps(obj, ensure_ascii=False)))
             f.flush()
     except Exception:
         pass
@@ -1303,47 +1822,55 @@ def handle_client(conn, addr):
             if not line or not line.startswith("PIN "):
                 return
             if not check_pairing_code(line[4:].strip()):
+                # 2026-11-06:配对卡住时日志里一个字都没有,只能靠猜。记一句(不记码本身)。
+                _log_line("[pair] 手机发来的配对码不对(和屏幕上那个不一致,或者已经过期)")
                 f.write("ERR bad pin\n")
                 f.flush()
                 return
 
-            # ---- 因素二:种子(首次配对走二维码,已配对等 TOTP/恢复码) ----
+            # ---- 因素二:种子(首次配对 / 手机重装后重新配对,都走二维码) ----
             secret = get_secret()
             pending_secret = None
-            pending_recovery = None
             if secret is None:
-                # 首次配对:电脑生成种子+恢复码,前端显示二维码(带外传种子)
-                pending_secret = generate_secret()
-                pending_recovery = generate_recovery()
-                _emit("setup", secret=pending_secret, recovery=pending_recovery)
-                f.write("SETUP\n")
-                f.flush()
+                # 首次配对:电脑显示二维码,手机扫码后**加密**领走新种子
+                pending_secret = _run_setup(f)
+                if pending_secret is None:
+                    return
             else:
                 f.write("TOTP_REQUIRED\n")
                 f.flush()
 
             active_secret = secret if secret is not None else pending_secret
 
-            # TOTP / RECOVER 循环
+            # TOTP / REPAIR 循环
             session_key = None
             while True:
                 line = _read_line(f)
                 if not line:
                     return
 
-                # 恢复流程:手机本地没种子时,凭一次性恢复码重新配对
-                if line.startswith("RECOVER ") and secret is not None:
-                    if check_recovery(line[len("RECOVER "):].strip()):
-                        pending_secret = generate_secret()
-                        pending_recovery = generate_recovery()
-                        active_secret = pending_secret
-                        _emit("setup", secret=pending_secret, recovery=pending_recovery)
-                        f.write("SETUP\n")
-                        f.flush()
-                        continue  # 手机扫码后发 TOTP
-                    f.write("ERR bad recovery\n")
-                    f.flush()
-                    continue
+                # ★★ 2026-11-06:重新配对(以前这里验的是「一次性恢复码」)。
+                #
+                #   为什么去掉恢复码:它是一把**长期有效的备用钥匙**,存在盘上
+                #   (加密,但同一 Windows 账户下任何程序都解得开),而它的全部用途
+                #   只是「手机丢了别麻烦你」。代价和收益不成比例。
+                #
+                #   现在的门槛和首次配对**完全一样**,而且一点都不低:
+                #     ① 手机得先知道电脑屏幕上那一刻显示的 6 位配对码(上面刚验过);
+                #     ② 电脑要先过自己那道登录 PIN 才会把二维码画出来
+                #        (`_show_master_gate`),窗口还有倒计时。
+                #   ⇒ 「能看电脑屏幕 + 能过电脑那道 PIN」= 可以重新登记一台手机。
+                #     这正是 authenticator 的模型:**没有备用钥匙,重新登记**。
+                #
+                #   ⚠️ 代价说清楚:重新配对会把**旧种子覆盖掉** —— 原来那台手机
+                #     从此连不上(要它自己再扫一次)。这是有意的,不是副作用。
+                if line.strip() == "REPAIR":
+                    new_secret = _run_setup(f)
+                    if new_secret is None:
+                        return
+                    pending_secret = new_secret
+                    active_secret = new_secret
+                    continue  # 手机已经加密领到新种子,接下来发 TOTP
 
                 if not line.startswith("TOTP "):
                     continue
@@ -1351,8 +1878,8 @@ def handle_client(conn, addr):
                 status, info = check_totp(active_secret, code)
                 if status == "ok":
                     if pending_secret is not None:
-                        # 首次配对或恢复配对成功:原子保存新种子+新恢复码
-                        save_pair(pending_secret, pending_recovery)
+                        # 首次配对 / 重新配对成功:原子保存新种子
+                        save_pair(pending_secret)
                         _emit("log", msg="配对完成,已保存密钥(DPAPI 加密)")
                     session_key = derive_session_key(pin, active_secret)
                     break
@@ -1445,6 +1972,31 @@ def handle_client(conn, addr):
                 continue
             if cmd == "DEL" and len(parts) == 4 and files is not None:
                 _cmd_del(f, write_lock, parts[2])
+                continue
+
+            # ---- 手协议:手机端问「你是谁、你会什么」;结果以 HARR <b64 json> 回写 ----
+            # HAND <seq> <b64 {}> : 自述身份 + 模型可见的工具表 + 每个工具占的资源
+            if cmd == "HAND" and len(parts) == 4:
+                _cmd_hand(f, write_lock, parts[2])
+                continue
+
+            # ---- AI 助手(手机端编排器请求执行一个工具;结果以 AIR <b64 json> 回写) ----
+            # AI <seq> <b64({"tool":..,"args":{..},"id":N})> : 打开应用/切窗口/媒体控制/截图/点击
+            # 工具白名单在 ai_tools.TOOLS 里,未知工具一律拒绝。
+            if cmd == "AI" and len(parts) == 4:
+                _cmd_ai(f, write_lock, parts[2])
+                continue
+
+            # ---- 手机键盘:点中了哪儿 / 按一下哪个键 ----
+            # HIT <seq> <b64 {"x":..,"y":..}> : 刚点的那一点上是不是输入框
+            # KEY <seq> <b64 {"vk":8}>         : 按一下退格/回车(白名单见 VK_KEYS)
+            # 两条都回一行(HITR/KEYR <b64 json>)。它们只为一件事存在:
+            # 让手机端那个「点电脑的输入框就自动弹输入法」成立。
+            if cmd == "HIT" and len(parts) == 4:
+                _cmd_hit(f, write_lock, parts[2])
+                continue
+            if cmd == "KEY" and len(parts) == 4:
+                _cmd_key(f, write_lock, parts[2])
                 continue
 
             if cmd == "M" and len(parts) == 7:
@@ -1551,7 +2103,7 @@ def _read_line(f):
     return line.strip()
 
 # ---------------------------------------------------------------------------
-# 电脑前端登录 PIN(打开程序要先输 PIN,防止别人在电脑上看到二维码/恢复码)
+# 电脑前端登录 PIN(打开程序要先输 PIN,防止别人在电脑上看到二维码/种子)
 # ---------------------------------------------------------------------------
 MASTER_PATH = os.path.join(HERE, "master.json")
 PBKDF2_ITERATIONS = 200_000
@@ -1582,17 +2134,127 @@ def verify_master_pin(pin):
         return False
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 媒体面板宿主:手机推流时自动弹「媒体悬浮窗」、停流自动收、可见时刷新预览与电平。
+# GuiApp(前台主面板)与 BackgroundHost(后台静默)都混入它 —— 两种模式行为一致,
+# 避免各写一份导致「切了模式就不自动弹」这种偏差。宿主需先有 self.root(Tk 根窗口)。
+# ---------------------------------------------------------------------------
+class _MediaPanelHost:
+    #: ★ 开机/开机自启后的这段时间里,媒体面板**不自动弹**。
+    #:   他 2026-11-06 的要求:「开机自启的时候(电脑)不要弹媒体面板」。
+    #:   原因很实际:手机连上会把断线前开着的摄像头/麦克风自动恢复 ——
+    #:   于是每回开电脑,一登录屏幕正中就自己蹦一个面板出来,而他什么都没点。
+    #:   这条只挡「自己蹦」;推流本身照常,数据照常到,预览也在面板里随时可看。
+    _BOOT_QUIET_SEC = 180
+
+    def _mc_init(self):
+        self._console = None
+        self._was_active = False   # 上一轮是否有媒体在推(检测「重新开始推流」)
+        self._off_ticks = 0        # 连续无推流轮数
+        self._manual = False       # 用户主动唤出过:不因停流自动收起
+        self._user_hidden = False  # 用户点了 X:本轮推流内不再自动弹
+        self._frame = None         # 最新一帧 JPEG(仅供预览,面板不可见时不解码)
+        self._last_vs = -1
+        self._t0 = time.time()     # 本进程启动时刻(算开机静默期用)
+
+    # ---- 媒体面板自动弹/收 + 预览/电平刷新(在 Tk 主线程轮询) ----
+    def _tick_media(self):
+        video = audio = False
+        mic_level = 0.0
+        if media is not None:
+            try:
+                video, audio = media.media_status()
+            except Exception:
+                video = audio = False
+            try:
+                serial, jpeg = media.latest_video()
+                if serial != self._last_vs:
+                    self._last_vs = serial
+                    self._frame = jpeg
+            except Exception:
+                pass
+            try:
+                mic_level = media.audio_level()
+            except Exception:
+                mic_level = 0.0
+
+        active = bool(video or audio)
+        rise = active and not self._was_active
+        self._was_active = active
+
+        # ★ 刚启动(开机自启)那几分钟:手机把断线前的摄像头/麦克风自动恢复时,不弹面板。
+        #   只挡「自己蹦」;推流、预览、电平都照常,要看就点 ××媒体面板.bat 或托盘。
+        if rise and active and not self._manual and not self._user_hidden:
+            if (time.time() - self._t0) < self._BOOT_QUIET_SEC:
+                self._user_hidden = True
+                _log_line("[media] 刚启动 %ds 内不自动弹媒体面板(推流照常)" % self._BOOT_QUIET_SEC)
+
+        if active:
+            self._off_ticks = 0
+            # ★ 电脑端 App 在线时,媒体画面由 App 的「媒体」页呈现 —— 这里不再自动弹
+            #   Tk 面板,否则同一路画面会出现两个窗口。手动唤出的(_manual)不受影响,
+            #   停流自动收起那条逻辑也保持不变。
+            app_view = bool(
+                app_bridge is not None and app_bridge.is_attached() and not self._manual
+            )
+            # 重新开始推流:若之前被用户收起,这轮可以再自动弹出来
+            if rise and self._user_hidden:
+                self._user_hidden = False
+                if not app_view:
+                    self._show_console()
+            # 平时:没人收起就一直亮着;被收起后不再弹,等下一次 rise
+            if not self._user_hidden and (self._console is None or not self._console.visible()):
+                if not app_view:
+                    self._show_console()
+        else:
+            self._off_ticks += 1
+            # 非手动唤出:停流约 1.2 秒后自动收起(约 8 轮)
+            if self._off_ticks > 8 and not self._manual:
+                if self._console is not None and self._console.visible():
+                    self._console.hide()
+
+        if self._console is not None and self._console.visible():
+            if video and self._frame is not None:
+                self._console.show_frame(self._frame)
+            elif not video:
+                self._console.clear_preview()
+            self._console.refresh(video, audio, mic_level)
+
+    def _show_console(self):
+        try:
+            import tkinter as tk
+        except Exception:
+            return
+        if self._console is None:
+            try:
+                self._console = MediaConsole(tk.Toplevel(self.root))
+                self._console.close_cb = self._on_console_closed
+            except Exception:
+                return
+        try:
+            self._console.show()
+        except Exception:
+            pass
+
+    def _on_console_closed(self):
+        """用户点 X 收起媒体面板:本轮推流内不再自动弹;手动唤出状态也取消。"""
+        self._user_hidden = True
+        self._manual = False
+
+
+# ---------------------------------------------------------------------------
 # GUI 前端(Tkinter)
 # ---------------------------------------------------------------------------
-class GuiApp:
+class GuiApp(_MediaPanelHost):
     def __init__(self, root, ip, port, paired):
         self.root = root
         self.ip = ip
         self.port = port
         self.paired = paired
         _transfer_set_root(root)   # 让文件中转站悬浮窗能挂在主面板下
+        self._mc_init()            # 媒体悬浮窗自动弹/收状态
         self._qr_photo = None  # 持引用防 GC
-        root.title("若息 · Terminal Max — 电脑端")
+        root.title("ConMarn — 电脑端")
         root.minsize(420, 540)
         # 点右上角 X = 隐藏到后台,服务照跑;想彻底停请用主面板的「退出服务」。
         root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -1639,7 +2301,7 @@ class GuiApp:
         tk.Label(self.root, text="首次使用:设置登录 PIN", font=("Microsoft YaHei", 15, "bold")).pack(anchor="w", **pad)
         tk.Label(
             self.root, fg="#666", wraplength=380, justify="left",
-            text="以后每次打开本程序都要先输入这个 PIN,防止别人在电脑上直接看到配对二维码、种子和恢复码。"
+            text="以后每次打开本程序都要先输入这个 PIN,防止别人在电脑上直接看到配对二维码与种子。"
         ).pack(anchor="w", **pad)
         tk.Label(self.root, text="登录 PIN(6 位数字):").pack(anchor="w", **pad)
         self._pin_entry1 = tk.Entry(self.root, show="•", font=("Consolas", 14))
@@ -1690,7 +2352,7 @@ class GuiApp:
         self._clear_root()
         pad = {"padx": 12, "pady": 4}
 
-        tk.Label(self.root, text="若息", font=("Microsoft YaHei", 16, "bold")).pack(anchor="w", **pad)
+        tk.Label(self.root, text="ConMarn", font=("Microsoft YaHei", 16, "bold")).pack(anchor="w", **pad)
         self.info_var = tk.StringVar()
         self.info_var.set(
             f"本机地址  {self.ip}:{self.port}    状态:{'已配对' if self.paired else '未配对'}"
@@ -1721,6 +2383,11 @@ class GuiApp:
         self.mic_btn.pack(side="left", padx=6)
         self.float_btn.pack(side="left")
         self.transfer_btn.pack(side="left", padx=(6, 0))
+        # 解除配对:把盘上那份种子删掉。手机下次连接时就像首次配对一样重新扫码。
+        # 这是「没有恢复码」之后唯一一条主动作废手机凭据的路,所以留在这块。
+        tk.Button(
+            med_row, text="解除配对", width=9, font=("Microsoft YaHei", 10),
+            fg="#cc0000", command=self._forget_pair_clicked).pack(side="left", padx=(6, 0))
 
         # 提示 + 退出:点右上角 X 只是收起窗口,手机连接不断;想彻底停才用这个按钮
         tk.Label(
@@ -1738,17 +2405,13 @@ class GuiApp:
         tk.Label(self.root, text="配对码(手机输这个):", fg="#666").pack(anchor="w", **pad)
         tk.Label(self.root, textvariable=self.pin_var, font=("Consolas", 30, "bold"), fg="#cc0000").pack(anchor="w", **pad)
 
-        # 二维码 + 种子 + 恢复码(首次配对时显示)
+        # 二维码 + 种子(首次配对 / 重新配对时显示)
         self.qr_label = tk.Label(self.root)
         self.qr_label.pack(**pad)
         self.secret_var = tk.StringVar()
         self.secret_var.set("")
         tk.Label(self.root, textvariable=self.secret_var, font=("Consolas", 9), fg="#333",
                  wraplength=400, justify="left").pack(anchor="w", **pad)
-        self.recovery_var = tk.StringVar()
-        self.recovery_var.set("")
-        tk.Label(self.root, textvariable=self.recovery_var, font=("Consolas", 12, "bold"),
-                 fg="#008800", wraplength=400, justify="left").pack(anchor="w", **pad)
 
         # 日志
         tk.Label(self.root, text="日志:", fg="#666").pack(anchor="w", **pad)
@@ -1766,6 +2429,7 @@ class GuiApp:
                 break
             self._handle(evt)
         self._refresh_media_ui()
+        self._tick_media()   # 手机推流时自动弹出媒体悬浮窗(此前 GUI 模式缺这段)
         self.root.after(100, self._poll)
 
     # ---- 主面板上的手机媒体开关 ----
@@ -1798,6 +2462,23 @@ class GuiApp:
         if n == 0:
             self.status_var.set("手机还没连上 —— 先让手机连接,再点摄像头/麦克风开关")
 
+    def _forget_pair_clicked(self):
+        """解除配对之前先问一句 —— 手滑点掉的话手机得重新扫一次码。"""
+        from tkinter import messagebox
+        if not messagebox.askyesno(
+            "解除配对",
+            "删掉这台电脑上保存的手机凭据?\n\n"
+            "删完之后手机要重新扫码配对才能再连上来(就像第一次一样)。",
+            parent=self.root,
+        ):
+            return
+        forget_pair()
+        self.secret_var.set("")
+        self.qr_label.config(image="", text="")
+        self._qr_photo = None
+        self.status_var.set("已解除配对,等待手机重新配对…")
+        self._log("[pair] 已解除配对:盘上的种子已删除")
+
     def _show_media_window(self):
         """「媒体悬浮窗」被点 X 关掉后,从这里把它再调出来。"""
         if MediaStatusWindow._instance is not None:
@@ -1812,13 +2493,14 @@ class GuiApp:
             self.pin_var.set(evt["pin"])
             self.status_var.set("配对码已生成,请在手机端输入")
         elif kind == "setup":
-            secret = evt["secret"]
-            recovery = evt["recovery"]
-            self.status_var.set("首次配对:手机扫码或输入下方种子")
-            grouped = "-".join(secret[i:i + 4] for i in range(0, len(secret), 4))
-            self.secret_var.set(f"种子: {grouped}")
-            self.recovery_var.set(f"恢复码(保存好,手机丢失/卸载时用): {recovery}")
-            b64 = make_qr_png_b64(secret)
+            qr_text = evt["qr"]
+            self.status_var.set("配对:请用手机扫描二维码")
+            # 扫不了码才用得上这一行(它只是临时公钥,不是钥匙;见 pair_crypto.py)
+            self.secret_var.set("扫不了码就抄这一行: " + qr_text)
+            # 2026-11-08 修:这里原来写的是 secret —— 该名字在本作用域不存在,
+            # 首次配对走 GUI 模式会抛 NameError,而 _poll 没有保护,事件轮询会永久停掉。
+            # 二维码画的是 qr_text(一次性公钥),与 BackgroundHost._show_setup 一致。
+            b64 = make_qr_png_b64(qr_text)
             if b64:
                 try:
                     self._qr_photo = tk.PhotoImage(data=b64)
@@ -1833,7 +2515,6 @@ class GuiApp:
             self._qr_photo = None
             self.qr_label.config(image="", text="")
             self.secret_var.set("")
-            self.recovery_var.set("")
         elif kind == "disconnected":
             if self.status_var.get().startswith("已连接"):
                 self.status_var.set("已断开,等待手机连接…")
@@ -1857,12 +2538,12 @@ class GuiApp:
 # 后台静默模式(开机自启用):根窗口隐藏,serve 启动即监听。
 # 手机连入需要配对码时,瞬态弹一个小窗显示;手机输对连上后小窗自动消失。
 # ---------------------------------------------------------------------------
-class BackgroundHost:
+class BackgroundHost(_MediaPanelHost):
     """后台宿主:无常驻窗口、无登录。配对码/首次配对种子只在需要时瞬态弹出。"""
 
     _POLL_MS = 150
     _PIN_MS = (PIN_TTL + 3) * 1000     # 配对码 120s 有效,多留 3s 缓冲后自动关窗
-    _SETUP_MS = 180 * 1000             # 首次配对种子窗口:给足抄写时间
+    _SETUP_MS = 180 * 1000             # 配对二维码窗口:给足扫码 / 手抄的时间
 
     def __init__(self, root, ip, port, paired):
         self.root = root
@@ -1873,17 +2554,14 @@ class BackgroundHost:
         self._pair_after = None
         self._setup_win = None
         self._setup_after = None
+        self._gate_win = None        # 登录 PIN 门禁窗:种子弹出前先验证
+        self._gate_after = None
+        self._pending_qr = None      # 配对二维码文本(一次性公钥)暂存,过 master PIN 后再画
+        self._qr_photo = None        # 配对二维码图片引用(持引用防 GC)
         # 媒体面板:手机一开始推流就自动弹,停流自动收;也可经本地 9530 命令唤出
-        self._console = None
-        self._was_media = False     # 上一轮是否有媒体在推(用于检测「重新开始推流」)
-        self._was_active = False
-        self._off_ticks = 0         # 连续无推流轮数
-        self._manual = False        # 用户主动唤出过:不因停流自动收起
-        self._user_hidden = False   # 用户点了 X:本轮推流内不再自动弹
-        self._frame = None          # 最新一帧 JPEG(供预览,仅在面板可见时解码)
-        self._last_vs = -1
+        self._mc_init()
         try:
-            root.title("若息 · Terminal Max(后台)")
+            root.title("ConMarn(后台)")
         except Exception:
             pass
         root.withdraw()  # 隐藏根窗口:整个服务没有任何常驻窗口
@@ -1894,7 +2572,8 @@ class BackgroundHost:
         root.after(self._POLL_MS, self._poll)
 
     def _ipc_listener(self):
-        """仅监听 127.0.0.1:9530,收到一行 SHOW 就唤出媒体面板(局域网不可达,无安全风险)。"""
+        """仅监听 127.0.0.1:9530:旧命令 SHOW 唤出媒体面板,其余交给 app_bridge
+        (电脑端 App 的状态读取与动作都走这里;局域网不可达)。"""
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -1911,8 +2590,7 @@ class BackgroundHost:
             try:
                 conn, _ = s.accept()
                 try:
-                    data = conn.recv(64).decode("utf-8", "replace").strip().upper()
-                    if data == "SHOW":
+                    if _ipc_serve_line(conn):
                         gui_queue.put({"kind": "console_show"})
                 except Exception:
                     pass
@@ -1941,18 +2619,31 @@ class BackgroundHost:
 
     def _handle(self, evt):
         kind = evt["kind"]
+        # ★ 电脑端 App 在线时,配对码与二维码由 App 显示,这里不再弹 Tk 小窗;
+        #   App 那条路同样要过登录 PIN(见 app_bridge._unlock),安全性质不变。
+        #   App 一关(6 秒内没有命令),下面照旧弹窗。
+        app_view = bool(app_bridge is not None and app_bridge.is_attached())
         if kind == "pairing":
             self._close_windows()
+            if app_view:
+                return
             self._show_code(evt["pin"])
         elif kind == "setup":
             self._close_windows()
-            self._show_setup(evt["secret"], evt["recovery"])
+            # 安全:种子是敏感凭据(拿到它 = 能冒充手机连上来)。
+            # 后台模式绝不能直接弹窗 —— 否则任何人坐到电脑前就能抄走。
+            # 先过 master PIN(没设过就先设置),校验通过才显示种子。
+            self._pending_qr = evt["qr"]
+            if app_view:
+                return
+            self._show_master_gate()
         elif kind == "connected":
             # 连上了:关掉配对码/种子小窗,恢复"无窗口"状态
             self._close_windows()
         elif kind == "console_show":
             # 手机媒体面板.bat 唤出:主动展示并保持(直到用户点 X 收起)
             self._manual = True
+            self._user_hidden = False   # 用户要了,就解除「刚启动不弹」的压制
             self._show_console()
         elif kind == "transfer_toggle":
             # 全局热键:呼出/收起电脑文件中转站
@@ -1960,75 +2651,6 @@ class BackgroundHost:
         elif kind in ("phl_result", "file_note", "upload_done"):
             # 文件互传事件:转给文件中转站悬浮窗(没有就自动弹出来)
             transfer_feed(evt)
-
-    # ---- 媒体面板自动弹/收 + 预览/电平刷新(在 Tk 主线程轮询) ----
-    def _tick_media(self):
-        video = audio = False
-        mic_level = 0.0
-        if media is not None:
-            try:
-                video, audio = media.media_status()
-            except Exception:
-                video = audio = False
-            try:
-                serial, jpeg = media.latest_video()
-                if serial != self._last_vs:
-                    self._last_vs = serial
-                    self._frame = jpeg
-            except Exception:
-                pass
-            try:
-                mic_level = media.audio_level()
-            except Exception:
-                mic_level = 0.0
-
-        active = bool(video or audio)
-        rise = active and not self._was_active
-        self._was_active = active
-
-        if active:
-            self._off_ticks = 0
-            # 重新开始推流:若之前被用户收起,这轮可以再自动弹出来
-            if rise and self._user_hidden:
-                self._user_hidden = False
-                self._show_console()
-            # 平时:没人收起就一直亮着;被收起后不再弹,等下一次 rise
-            if not self._user_hidden and (self._console is None or not self._console.visible()):
-                self._show_console()
-        else:
-            self._off_ticks += 1
-            # 非手动唤出:停流约 1.2 秒后自动收起(约 8 轮)
-            if self._off_ticks > 8 and not self._manual:
-                if self._console is not None and self._console.visible():
-                    self._console.hide()
-
-        if self._console is not None and self._console.visible():
-            if video and self._frame is not None:
-                self._console.show_frame(self._frame)
-            elif not video:
-                self._console.clear_preview()
-            self._console.refresh(video, audio, mic_level)
-
-    def _show_console(self):
-        try:
-            import tkinter as tk
-        except Exception:
-            return
-        if self._console is None:
-            try:
-                self._console = MediaConsole(tk.Toplevel(self.root))
-                self._console.close_cb = self._on_console_closed
-            except Exception:
-                return
-        try:
-            self._console.show()
-        except Exception:
-            pass
-
-    def _on_console_closed(self):
-        """用户点 X 收起媒体面板:本轮推流内不再自动弹;手动唤出状态也取消。"""
-        self._user_hidden = True
-        self._manual = False
 
     def _close_windows(self):
         if self._pair_after:
@@ -2055,6 +2677,19 @@ class BackgroundHost:
             except Exception:
                 pass
             self._setup_win = None
+        if self._gate_after:
+            try:
+                self.root.after_cancel(self._gate_after)
+            except Exception:
+                pass
+            self._gate_after = None
+        if self._gate_win is not None:
+            try:
+                self._gate_win.destroy()
+            except Exception:
+                pass
+            self._gate_win = None
+        self._qr_photo = None  # 释放二维码图片
 
     def _center(self, w):
         try:
@@ -2069,7 +2704,7 @@ class BackgroundHost:
         import tkinter as tk
         w = tk.Toplevel(self.root)
         try:
-            w.title("若息 — 配对")
+            w.title("ConMarn — 配对")
             w.attributes("-topmost", True)
             w.configure(bg="#1e1e1e")
         except Exception:
@@ -2090,27 +2725,41 @@ class BackgroundHost:
         self._center(w)
         self._pair_after = self.root.after(self._PIN_MS, self._close_windows)
 
-    def _show_setup(self, secret, recovery):
+    def _show_setup(self, qr_text):
+        """配对窗:二维码 + 那句「扫不了就抄这一行」。
+
+        ★ 2026-11-06 起**这里没有种子了**:`qr_text` 只是一次性的临时公钥
+          (见 pair_crypto.py)。窗口上再也找不到任何长期凭据,
+          所以就算被别人看屏幕,也拿不走东西。
+        """
         import tkinter as tk
-        grouped = "-".join(secret[i:i + 4] for i in range(0, len(secret), 4))
         w = tk.Toplevel(self.root)
         try:
-            w.title("若息 — 首次配对")
+            w.title("ConMarn — 配对")
             w.attributes("-topmost", True)
             w.configure(bg="#1e1e1e")
         except Exception:
             pass
         tk.Label(
-            w, text="首次配对 —— 用手机「扫描」连接后,在电脑下方提示处手动输入种子:",
+            w, text="用手机「扫描」扫下方二维码(扫不了就把下面这一行抄进手机):",
             bg="#1e1e1e", fg="#e8e8e8", font=("Microsoft YaHei", 11), wraplength=380, justify="left"
         ).pack(padx=22, pady=(16, 6))
+        qr_label = tk.Label(w, bg="#1e1e1e")
+        qr_label.pack(padx=22, pady=(2, 6))
+        b64 = make_qr_png_b64(qr_text)
+        if b64:
+            try:
+                self._qr_photo = tk.PhotoImage(data=b64)
+                qr_label.config(image=self._qr_photo)
+            except Exception:
+                qr_label.config(text="(二维码生成失败,请抄下面那一行)",
+                                fg="#9aa0a6", font=("Microsoft YaHei", 9))
+        else:
+            qr_label.config(text="(未装 segno,请抄下面那一行)",
+                            fg="#9aa0a6", font=("Microsoft YaHei", 9))
         tk.Label(
-            w, text="种子: %s" % grouped, bg="#1e1e1e", fg="#ffb74d",
-            font=("Consolas", 12), wraplength=400, justify="left"
-        ).pack(padx=22, pady=4)
-        tk.Label(
-            w, text="恢复码(保存好,手机丢失/卸载时用): %s" % recovery,
-            bg="#1e1e1e", fg="#66bb6a", font=("Consolas", 11), wraplength=400, justify="left"
+            w, text=qr_text, bg="#1e1e1e", fg="#ffb74d",
+            font=("Consolas", 9), wraplength=400, justify="left"
         ).pack(padx=22, pady=4)
         tk.Label(
             w, text="(配完连上后此窗自动关闭)",
@@ -2119,6 +2768,87 @@ class BackgroundHost:
         self._setup_win = w
         self._center(w)
         self._setup_after = self.root.after(self._SETUP_MS, self._close_windows)
+
+    def _show_master_gate(self):
+        """种子弹出前的登录 PIN 门禁(与 GUI 模式对齐)。
+
+        有 master PIN 就校验;没设过就先要求设置一个。校验/设置通过才调用
+        _show_setup 显示种子;窗口超时自动关、不显示任何凭据。
+
+        ★这道门同时也管「重新配对」:手机没了种子就能要求换新种子,
+        所以**只有在这里(坐在电脑前、知道登录 PIN 的人)才能换**。
+        没有恢复码这种「备用钥匙」——一把都不留。
+        """
+        import tkinter as tk
+        have_master = master_exists()
+        qr_text = self._pending_qr
+
+        w = tk.Toplevel(self.root)
+        try:
+            w.title("ConMarn — 验证身份")
+            w.attributes("-topmost", True)
+            w.configure(bg="#1e1e1e")
+        except Exception:
+            pass
+
+        head = ("显示配对二维码前,请先验证登录 PIN"
+                if have_master else "请先设置登录 PIN(首次)")
+        sub = ("输入登录 PIN 后才会画出二维码,防止他人隔着屏幕把它扫走。"
+               if have_master else "设置一个 6 位数字 PIN,以后画配对二维码前都要先输入。")
+        tk.Label(
+            w, text=head, bg="#1e1e1e", fg="#e8e8e8",
+            font=("Microsoft YaHei", 11, "bold"), wraplength=380, justify="left"
+        ).pack(padx=22, pady=(16, 4))
+        tk.Label(
+            w, text=sub, bg="#1e1e1e", fg="#9aa0a6",
+            font=("Microsoft YaHei", 9), wraplength=380, justify="left"
+        ).pack(padx=22, pady=(0, 8))
+
+        entry = tk.Entry(w, show="•", font=("Consolas", 14))
+        entry.pack(padx=22, pady=4)
+        entry2 = None
+        if not have_master:
+            tk.Label(
+                w, text="再次确认 PIN:", bg="#1e1e1e", fg="#9aa0a6",
+                font=("Microsoft YaHei", 9)
+            ).pack(anchor="w", padx=22, pady=(4, 0))
+            entry2 = tk.Entry(w, show="•", font=("Consolas", 14))
+            entry2.pack(padx=22, pady=4)
+
+        err = tk.Label(w, text="", bg="#1e1e1e", fg="#ff5252",
+                       font=("Microsoft YaHei", 9))
+        err.pack(padx=22, pady=(2, 8))
+
+        def _submit(_=None):
+            p1 = entry.get().strip()
+            if have_master:
+                if verify_master_pin(p1):
+                    self._close_windows()
+                    self._show_setup(qr_text)
+                else:
+                    err.config(text="PIN 错误,请重试")
+                    entry.delete(0, "end")
+            else:
+                p2 = entry2.get().strip() if entry2 is not None else ""
+                if not (len(p1) == 6 and p1.isdigit()):
+                    err.config(text="PIN 必须是 6 位数字")
+                    return
+                if p1 != p2:
+                    err.config(text="两次输入不一致,请重试")
+                    return
+                set_master_pin(p1)
+                self._close_windows()
+                self._show_setup(qr_text)
+
+        tk.Button(w, text="确认", command=_submit).pack(padx=22, pady=(2, 14))
+        entry.bind("<Return>", _submit)
+        if entry2 is not None:
+            entry2.bind("<Return>", _submit)
+        entry.focus_set()
+
+        self._gate_win = w
+        self._center(w)
+        self._gate_after = self.root.after(self._SETUP_MS, self._close_windows)
 
 
 # ---------------------------------------------------------------------------
@@ -2135,7 +2865,7 @@ class MediaStatusWindow:
         MediaStatusWindow._instance = self
         self.win = win
         try:
-            win.title("若息")
+            win.title("ConMarn")
             win.attributes("-topmost", True)
         except Exception:
             pass
@@ -2307,7 +3037,7 @@ class MediaConsole:
         self._placeholder_note = None  # 兼容旧属性名,保留引用
         self.close_cb = None           # 由宿主设置:用户点 X 收起面板时通知
         try:
-            win.title("若息 · 媒体面板")
+            win.title("ConMarn · 媒体面板")
             win.configure(bg="#1e1e1e")
             win.attributes("-topmost", True)
         except Exception:
@@ -2712,7 +3442,7 @@ class TransferStation:
         self._phone_dir = ""      # 手机回传时带的当前路径(留作显示)
         self._local = []          # 电脑中转目录(收到的文件)清单
         try:
-            win.title("若息 · 文件中转站")
+            win.title("ConMarn · 文件中转站")
             win.configure(bg="#1e1e1e")
             win.attributes("-topmost", True)
         except Exception:
@@ -3058,6 +3788,44 @@ def get_lan_ip():
         s.close()
 
 
+def _ipc_serve_line(conn):
+    """处理 127.0.0.1:9530 上的一条本地命令。
+
+    返回 True 表示这是旧协议的 SHOW(由调用方按原行为处理);
+    返回 False 表示已交给 app_bridge 并回复(或无需回复)。
+
+    命令与回复都是一行:``<命令>\\n`` → ``<json>\\n``。
+    读超时 5 秒,单条命令上限 8 KB —— App 只发短命令,文件内容不走这条路。
+    """
+    try:
+        conn.settimeout(5.0)
+    except Exception:
+        pass
+    buf = b""
+    try:
+        while len(buf) < 8192 and b"\n" not in buf:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            buf += chunk
+    except Exception:
+        pass
+    line = buf.split(b"\n", 1)[0].decode("utf-8", "replace").strip()
+    if not line:
+        return False
+    if line.upper() == "SHOW":
+        return True
+    if app_bridge is None:
+        return False
+    reply = app_bridge.handle_line(line)
+    if reply:
+        try:
+            conn.sendall((reply + "\n").encode("utf-8"))
+        except Exception:
+            pass
+    return False
+
+
 def start_show_ipc(on_show):
     """本进程独占 9527(即唯一实例)后,再独占 127.0.0.1:9530。
 
@@ -3085,8 +3853,7 @@ def _ipc_show_loop(s, on_show):
         try:
             conn, _ = s.accept()
             try:
-                data = conn.recv(64).decode("utf-8", "replace").strip().upper()
-                if data == "SHOW":
+                if _ipc_serve_line(conn):
                     try:
                         on_show()
                     except Exception:
@@ -3137,22 +3904,200 @@ def serve(port):
     server.listen(5)
     # 成功独占端口后才开始广播,避免第二个实例也广播让手机看到多个电脑端
     threading.Thread(target=discovery_beacon, args=(port,), daemon=True).start()
+    threading.Thread(target=discovery_responder, args=(port,), daemon=True).start()
     while True:
         conn, addr = server.accept()
         threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
 
 
+def _discovery_payload(port):
+    """发现应答/广播里的那一小包身份。手机端两个函数共用同一份,免得改一处漏一处。
+
+    ★ 三条**不能动**的规矩(动一条就出真故障):
+
+    1. **`app` 和 `port` 必须在,且值不能变。** 手机端认电脑就靠这两个键。
+    2. **不能出现 `probe`。** 探测包长 `{"app":..,"probe":true}`,而应答分发的地方
+       就是拿 `probe` 有没有来分「这是探测还是应答」的(`TouchpadClient.kt:931`)。
+       ★ 更要命的是电脑这边自己:下面 `discovery_responder` 的过滤条件也是
+       `b"phone-touchpad" in data and b"probe" in data` —— 万一应答里带了
+       `probe`,两台**电脑**会互相回包,无限对轰。所以这里只加 `hand`。
+    3. **`hand` 里只放身份(id/kind/name),不放工具表。** 工具表走 `HAND`/`HARR`
+       那条签名命令(见 `_cmd_hand`)。这包是 UDP、要短,而且它一台电脑发一次、
+       整个网段都能听到 —— 往里塞能力清单等于每个邻居都白收一份。
+
+    `hand` 的用处:手机端现在能同时看见好几台电脑(`showFoundList`),但列表里只有
+    `ip:port`,人分不清哪台是哪台。有了名字才谈得上「选一只手」。
+    """
+    payload = {"app": "phone-touchpad", "port": port}
+    try:
+        host = socket.gethostname() or "pc"
+    except Exception:
+        host = "pc"
+    payload["hand"] = {"id": host, "kind": "windows-pc", "name": host}
+    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
+_GATEWAY_REFRESH_TICKS = 30   # 每 30 个信标周期(≈60 秒)重查一次默认网关
+
+
+def _usable_gateway(s):
+    """gateway 那一格是不是一个**能用的**地址(排除占位值和回环)。"""
+    if s in ("0.0.0.0", "255.255.255.255", "127.0.0.1", "::", ""):
+        return False
+    parts = s.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        return all(0 <= int(x) <= 255 for x in parts)
+    except ValueError:
+        return False
+
+
+def _default_gateway():
+    """问系统:「不知道地址的包,你会送给谁」—— 也就是**默认网关**。
+
+    ★ 发现流程为什么需要它(2026-10-07,用户报「电脑连手机热点时手机找不到电脑」):
+
+      手机开热点时,**那个网里的网关 / DHCP 服务器就是手机自己** ——
+      所以「默认网关」这个地址,在热点场景下**恰好就是手机的地址**。
+      于是「把信标再单播一份给默认网关」= 「直接朝手机喊一声」,不走广播。
+
+    ★ 为什么不能只靠广播(实测,同一台机 2026-10-03):
+      手机省电时会**过滤广播帧**(App 没拿 MulticastLock):电脑每 2 秒一次的真实广播,
+      手机听 22 秒只收到 1 个;而同样的包走**单播**,23 个到 23 个。
+      **单播是可靠的那条。**
+
+    ★ 代价(如实记在这,别当成免费):普通 Wi-Fi 下网关是路由器,它每 2 秒会多收
+      一个没用的小 UDP 包 —— 无害,但确实是多出来的流量。
+      ★★ 而且这是**绕过**,不是修好:手机自己「往本网段撒探测」那条路好不好,
+      跟这里没有关系,**那条该怎么修还是怎么修**。
+
+    取法:`route print -4` 里那两列都是 `0.0.0.0` 的默认路由
+    (`0.0.0.0 0.0.0.0 <网关> <本机地址> <跃点数>`),多条时取跃点数最小的。
+
+    ★ 输出**只认数字不认表头** —— 表头在中文 Windows 上是 GBK,直接按 UTF-8 解会花掉,
+      但 IP 和跃点数都是 ASCII,不受影响。(同 `model.log` 那个 UTF-8/GBK 的老坑。)
+    """
+    try:
+        out = subprocess.check_output(
+            ["route", "print", "-4"], stderr=subprocess.DEVNULL, timeout=5,
+            # ★★ 这个参数不能省:本函数是从**后台线程**里调的,而电脑端是 pythonw.exe
+            #    (GUI 进程,**没有控制台**)。没有这一行,Windows 会**给 route.exe
+            #    开一个新控制台** —— 也就是**每 60 秒闪一下黑框**。
+            #    这个项目刚在 `.bat` 上吃过「黑框一闪」的亏(LF 换行那次),
+            #    不能在同一个形状上再栽一次。非 Windows 上取 0 = 无效果。
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        ).decode("utf-8", "replace")
+    except Exception:
+        return None
+    best = None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
+            gw = parts[2]
+            if not _usable_gateway(gw):
+                continue
+            try:
+                metric = int(parts[4])
+            except (IndexError, ValueError):
+                metric = 999999
+            if best is None or metric < best[1]:
+                best = (gw, metric)
+    return best[0] if best else None
+
+
 def discovery_beacon(port):
-    """向局域网广播「我是手机触控板电脑端」,手机扫描端口 DISCOVERY_PORT 即可发现。"""
+    """向局域网广播「我是手机触控板电脑端」,手机扫描端口 DISCOVERY_PORT 即可发现。
+
+    ★ 2026-10-07:除广播外,**每轮再单播一份给默认网关** —— 理由和代价见
+    `_default_gateway()` 的注释。这里只说落在代码上的两条:
+
+      · 用的仍是**同一个** `_discovery_payload(port)`,**没有一个字不同** ——
+        那三条不可动的规矩(尤其「不能出现 probe」,否则两台电脑会互相无限对轰)
+        因此原样成立。
+      · 网关变了(比如从家里 Wi-Fi 换成手机热点)会**记一行日志**;拿不到网关
+        (整台机器没网)就**静默跳过单播那一步**,广播照旧 —— 不许因为查不到网关
+        就把发现整个搞坏。
+    """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    payload = json.dumps({"app": "phone-touchpad", "port": port}).encode("utf-8")
+    payload = _discovery_payload(port)
+    gw = None
+    tick = 0
     while True:
+        if tick % _GATEWAY_REFRESH_TICKS == 0:
+            found = _default_gateway()
+            if found != gw:
+                gw = found
+                if gw:
+                    _log_line("[disc] 信标:广播 + 单播给默认网关 %s"
+                              "(手机开热点时它就是手机自己)" % gw)
+                else:
+                    _log_line("[disc] 信标:只有广播(查不到默认网关)")
+        tick += 1
         try:
             s.sendto(payload, ("255.255.255.255", DISCOVERY_PORT))
         except Exception:
             pass
+        if gw:
+            try:
+                s.sendto(payload, (gw, DISCOVERY_PORT))
+            except Exception:
+                pass
         time.sleep(BEACON_INTERVAL)
+
+
+def discovery_responder(port):
+    """听 DISCOVERY_PORT 上的**单播探测**,原样单播回一个信标。
+
+    ★ 2026-10-03 加,起因是用户报的「手机扫描要扫两次」。
+
+    实测这一台(Android 17 / ColorOS),同一个端口、同一段时间:
+
+        从电脑发**单播**到手机 192.168.1.12  →  23 个,到 23 个
+        从电脑发**广播**到 255.255.255.255   →  23 个,到 1 个
+        电脑每 2 秒一次的真实广播,手机听 22 秒(该有 11 个)  →  到 1 个
+
+    两次独立复现。原因是 Android 上 Wi-Fi 芯片在省电时会**过滤广播/组播帧**
+    (App 要拿 WifiManager.MulticastLock 才能可靠接收),而这个 App 里没有任何锁。
+
+    所以广播**不能**当唯一的路:3 秒的扫描窗口里该收到 1~2 个广播,实际经常是 0 个
+    —— 第一次扫描报「没找到电脑」,用户点一下再看一眼提示的工夫收音机醒了,
+    第二次就成了。这就是「扫两次」。
+
+    广播那条路保留(别的机子、别的网络上它是好的,而且手机本来就是靠它自己发现
+    多台电脑的),这里补的是**可靠的那条**:手机往本网段逐个地址发单播探测,谁回谁就是。
+
+    为什么用同一个端口做双向:手机那边一个 socket 就够(绑定 + 发探测 + 收应答),
+    不用两边维护两套端口常量。
+    """
+    payload = _discovery_payload(port)
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.bind(("0.0.0.0", DISCOVERY_PORT))
+    except OSError as e:
+        # 端口被占(比如开了两个实例)—— 广播那条路还在,不吵。
+        # ★ 2026-10-07:但**必须留一行**。绑不上 = 手机的单播探测**一条都收不到**,
+        # 症状和「手机的探测没出门」**一模一样**(都是零日志),而这两件事的修法完全相反。
+        # 原来这里是纯静默 return —— 那正是这天查不出原因的那一类「静默失败」。
+        _log_line("[disc] 单播应答没起来:%s —— 手机只能靠广播发现自己,"
+                  "扫不到多半是这儿(端口被占?)" % e)
+        return
+    while True:
+        try:
+            data, addr = s.recvfrom(2048)
+            if b"phone-touchpad" in data and b"probe" in data:
+                s.sendto(payload, addr)
+                # ★ 2026-10-07 加的。这一行不是噪音,是**判据**:
+                #   · **有行** ⇒ 手机的探测出门了、也到得了电脑 ⇒ 问题在**回程/收包**那一侧;
+                #   · **零行** ⇒ 探测根本没出门 ⇒ 问题在**手机那一侧**(权限/没绑上/压根没跑到扫描)。
+                # 加之前这个函数**一行日志都没有**,2026-10-07 查「电脑连手机热点,手机扫描
+                # 找不到电脑」时,整个调查因此瞎了一天 —— 分不清「包没来」和「来了没回」。
+                # 探测只在用户点扫描那几秒里来,一次最多一两条,不会刷屏。
+                _log_line("[disc] 收到探测 %s:%d —— 已单播应答" % (addr[0], addr[1]))
+        except Exception:
+            pass
 
 
 def _autostart_lnk_path():
@@ -3291,6 +4236,26 @@ def main():
     ip = get_lan_ip()
     paired = get_secret() is not None
 
+    # 启动就打一行 AI 模块状态:排查「手机说电脑端没装 AI 模块」时不用猜。
+    if ai_tools is None:
+        _log_line("[ai] 工具执行器没有加载 —— AI 助手不可用(检查 ai_tools.py 是否在 server.py 同目录)")
+    else:
+        # 这一行是**判断「改完的电脑端到底重启了没有」的判据**(服务端不热加载,
+        # 症状是手机上跑的还是旧台词)。指纹变了 = 新代码在跑;数字对不上 = 没重启。
+        _log_line("[ai] 工具执行器就绪(%d 个,模型可见 %d 个),指纹 %s,可用工具: %s"
+                  % (len(ai_tools.TOOLS),
+                     len(ai_tools.tool_schema(for_model=True)),
+                     ai_tools.schema_fingerprint(),
+                     ", ".join(sorted(ai_tools.TOOLS.keys()))))
+        # 手自述也先在启动时验一次:自述这一环坏了,HAND 命令会回错误,
+        # 而手机那边看起来只是「这只手什么都不会」—— 不报错的坏,提前戳破它。
+        try:
+            info = ai_tools.hand_info()
+            _log_line("[hand] 我是「%s」(%s / %s)" % (info["name"], info["id"], info["kind"]))
+        except Exception as e:
+            _log_line("[hand] ★ 自述失败(%s: %s)—— 手机端问「有哪些手」会拿不到清单"
+                      % (type(e).__name__, e))
+
     if BACKGROUND_MODE:
         # 后台静默:无常驻窗口、无登录,serve 启动即监听;配对码瞬态弹窗
         try:
@@ -3317,7 +4282,7 @@ def main():
         root.mainloop()
     else:
         print("=" * 60)
-        print("  若息 · Terminal Max —— 电脑端服务 (无 GUI 模式 + 状态悬浮窗)")
+        print("  ConMarn —— 电脑端服务 (无 GUI 模式 + 状态悬浮窗)")
         print(f"  本机 IP  : {ip}")
         print(f"  端口     : {port}")
         print(f"  配对状态 : {'已配对(有密钥)' if paired else '未配对'}")

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>大屏预览（不是产品页）</title>
+<link rel="stylesheet" href="../app/src/main/assets/dash/dash.css">
+</head>
+<body>
+<div id="hdr">
+  <div class="t">AGENT OPS / DISPATCH CENTER</div>
+  <div class="s" id="sub">SESSION —</div>
+</div>
+<div id="frame" aria-hidden="true">
+  <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+</div>
+<div id="panes">
+  <div id="stage"><canvas id="cv"></canvas><div id="hud"></div><button id="fold" type="button" aria-label="收起侧栏">›</button></div>
+  <div id="grip"></div>
+  <div id="side">
+    <canvas id="chart"></canvas>
+    <div id="list"></div>
+    <div id="empty">还没有事件。<br>她一开口派活，这里会一行一行长出来。</div>
+  </div>
+</div>
+<script src="../app/src/main/assets/dash/dash-core.js"></script>
+<script src="../app/src/main/assets/dash/dash-app.js"></script>
+<script>
+/*
+ * 只为在电脑上**看**这一屏长什么样：喂一段假事件。
+ *
+ * ★ 这份假事件**永远不会进 APK**（它在 tools/ 里，不在 assets/ 里）。
+ *   产品里那份 index.html 一条假事件都不带。
+ *
+ * 用法：
+ *   "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless=new \
+ *     --disable-gpu --window-size=430,900 \
+ *     --screenshot=C:/Users/27014/phone-touchpad/tools/dash-preview.png \
+ *     "file:///C:/Users/27014/phone-touchpad/tools/dash-preview.html"
+ */
+(function () {
+  var now = Date.now();
+  // ★ 最后那个 `tok` 是**那一步真花掉的 token**（服务端回包里的 usage）。预览这里填的是
+  //   和正文长度对得上的量级；产品里只有服务端真的报了账才有数，没有就是 0。
+  function ev(i, from, role, kind, text, ref, ago, tok) {
+    return {
+      id: i, task: "preview", from: from, role: role, kind: kind,
+      ref: ref || 0, text: text, at: now - (ago || 0), tok: tok || 0
+    };
+  }
+  var demo = [
+    ev(1, "self", "", "note", "把这版方案改短，顺便说说哪里站不住", 0, 42000),
+    ev(2, "hub", "", "route", "纯文字分析，可以出门", 0, 41000),
+    ev(3, "hub", "编辑", "ask", "改短一点，书面一些，保留结论", 0, 40000),
+    ev(4, "hub", "审稿人", "ask", "挑毛病，说哪里站不住", 0, 40000),
+    ev(5, "hub", "估算师", "ask", "粗算这一版要多久改完", 0, 40000),
+    ev(6, "cloud", "编辑", "answer", "已给出 300 字版本，删掉了三段重复论证。", 3, 36000, 12840),
+    ev(7, "cloud", "审稿人", "answer", "第三节缺少数据支撑，结论跳步。", 4, 35000, 9860),
+    ev(8, "hub", "", "note", "扇出 3 份：编辑|改短一点；审稿人|挑毛病；估算师|粗算工期", 0, 34000),
+    ev(9, "hub", "", "note", "对账：回来了 2 份，对出 2 条相同点、1 条分歧", 0, 33000),
+    // 一条接力：检索员 → 编辑。中间那条是「交接」，不是旁白。
+    ev(10, "hub", "", "note", "接力 2 段：检索员 → 编辑", 0, 26000),
+    ev(11, "hub", "检索员", "ask", "把这一版和上一版逐条对齐，列出改了哪几句", 0, 25000),
+    ev(12, "cloud", "检索员", "answer", "找到 11 处改动，其中 3 处改了结论。", 11, 21000, 15620),
+    ev(13, "hub", "接力", "note", "第 2/2 段 → 「编辑」，带着「检索员」回来的 22 字往下做", 0, 20000),
+    ev(14, "hub", "编辑", "ask", "照这份对照表写一段 300 字的改动说明", 0, 3000),
+    // ── 下面这一段是**预览专用**，只为让屏上有点真实的密度（产品里一条都不带）──
+    ev(15, "cloud", "编辑", "answer", "已按对照表写成一段。", 14, 0, 6410),
+    ev(16, "hub", "审稿人", "ask", "二审：看结论有没有跳步", 0, 88000),
+    ev(17, "cloud", "审稿人", "answer", "结论缺一步推导。", 16, 79000, 5240),
+    ev(18, "hub", "估算师", "ask", "按二审意见重估工期", 0, 77000),
+    ev(19, "cloud", "估算师", "answer", "重估 3 天。", 18, 68000, 4180),
+    ev(20, "hub", "审稿人", "ask", "三审：只挑事实错误", 0, 62000),
+    ev(21, "cloud", "审稿人", "answer", "第 2 节日期写错。", 20, 55000, 3870),
+    ev(22, "hub", "估算师", "ask", "日期改掉以后工期还变吗", 0, 51000),
+    ev(23, "cloud", "估算师", "error", "工具调用超时", 22, 46000, 2110),
+    ev(24, "hub", "检索员", "ask", "把引用来源找齐", 0, 44000),
+    ev(25, "cloud", "检索员", "answer", "找到 6 条来源。", 24, 37000, 8730),
+    ev(26, "hub", "编辑", "ask", "把二审三审的意见都并进正文", 0, 15000),
+    ev(27, "cloud", "编辑", "answer", "已并进正文。", 26, 9000, 7120)
+  ];
+  // ★ 第一推是「历史」，产品里它**不放彗星**（见 dash-app.js 的 `greeted`）。
+  //   所以这里先推前 25 条当历史，隔一会儿再推全量 —— 真正会动起来的只有最后 2 条，
+  //   和真实使用中「打开大屏之后又干了两件事」一模一样。
+  window.dashPush(JSON.stringify(demo.slice(0, 25)));
+  setTimeout(function () { window.dashPush(JSON.stringify(demo)); }, 700);
+  // 加 `?scroll=1` 打开时把**右栏**往下一段 —— 验「列表自己滚、页面不动、标题原地不动」。
+  // ★ 只在 tools/ 这份预览里，产品里那个 index.html 没有这一段。
+  // ★ 2026-11-05：整页已经不再滚动（改成一块屏内分区），所以量的是 `#list` 的 scrollTop，
+  //   `window.scrollY` 永远是 0，拿它还当判据等于什么都没量。
+  if (/scroll/.test(location.search)) {
+    setTimeout(function () {
+      var l = document.getElementById("list");
+      l.scrollTop = 300;
+      // ★ `--dump-dom` 抓 <title> 就能读出这几个数。无头 Edge 截图在画布 + 滚动的情况下
+      //   会画错位置，所以这类判断认 `getBoundingClientRect` / `scrollTop`，不认截图。
+      var h = document.getElementById("hdr").getBoundingClientRect();
+      var st = document.querySelectorAll("#list .status");
+      var sr = st.length ? st[st.length - 1].getBoundingClientRect() : { right: 0, width: 0 };
+      var lr = l.getBoundingClientRect();
+      var ch = document.getElementById("chart").getBoundingClientRect();
+      document.title = "vw=" + document.documentElement.clientWidth +
+        " chart=" + Math.round(ch.left) + ".." + Math.round(ch.right) + " h=" + Math.round(ch.height) +
+        " listR=" + Math.round(lr.left) + ".." + Math.round(lr.right) +
+        " stR=" + Math.round(sr.right) + " stW=" + Math.round(sr.width) +
+        " ovf=" + l.scrollWidth + "/" + l.clientWidth +
+        " listST=" + Math.round(l.scrollTop) +
+        " hdrTop=" + Math.round(h.top) +
+        " winSY=" + Math.round(window.scrollY) +
+        " split=" + getComputedStyle(document.getElementById("panes")).gridTemplateColumns;
+    }, 1000);
+  }
+})();
+</script>
+</body>
+</html>

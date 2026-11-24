@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  她那个桌面图标的自适应版本(Android 8.0+ 都用这个,只有老系统才回落到
+  mipmap-*/ic_conmarn.png)。
+
+  前景图 ic_conmarn_fg.png 是**留白画布**:108dp 的画布里,那个标记只占中间 72dp ——
+  外面每边 18dp 会被启动器的遮罩切掉,画满了就会缺一块。
+  底色是 drawable/ic_conmarn_bg_grad.xml 里那条斜向渐变,单独一层,
+  启动器做视差/缩放时它不会被拉变形。
+
+  ★ 前景换过图(详见 THIRD_PARTY.md 第 D 节)。要换的时候记住它**不是一张图**:
+  前景 / ic_conmarn.png / ic_conmarn_round.png 三套,各自在 5 个 mipmap-*dpi 目录里,
+  而这里引用的只是前景那一套。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_conmarn_bg_grad" />
+    <foreground android:drawable="@mipmap/ic_conmarn_fg" />
+</adaptive-icon>

@@ -7,6 +7,34 @@
     <color name="text_secondary">#9BA1A6</color>
     <color name="glass_text">#263238</color>
 
+    <!--
+      透明磨砂玻璃上那几档字色(2026-10-08,「她的房间」设置面板整套换玻璃)。
+
+      ★ 为什么不能沿用房间里那几个:房间是**深色底**,那儿写的是 `0xFFF6E7EE`(近白)、
+        `0xFFC8A9B6`(浅粉)这类浅色;而玻璃是**约七成白**,同一串浅色压上去 = 白字压白玻璃,
+        扫过去就是「这一行看不见」。所以不是换风格,是**原本看不见**。
+
+      ★ 四档对应关系(旧的 → 新的):
+        `0xFFF6E7EE` 标题 / 数值  → [glass_text]   #263238(最重)
+        `0xFFC8A9B6` 副标题 / 标签 → [glass_sub]    #4E5F68
+        `0xFF8A7B84` 提示 / 脚注   → [glass_dim]    #8A263238(带 54% 透明)
+        `0xFFE05B8E` 分区标题(她的粉) → [glass_accent] #B03A6B
+    -->
+    <color name="glass_sub">#4E5F68</color>
+    <color name="glass_dim">#8A263238</color>
+
+    <!--
+      ★ 她的粉在玻璃上要**压深**才够用。原来那个 `#E05B8E` 压在约七成白的玻璃上,
+        对比度只有 3:1 上下,13sp 的小字读着吃力 —— 这是「为什么动它」的具体理由。
+      ★ 只用于**直接压在玻璃上的字**。深色按钮([herButton] 那个 `btn_her` #1E2126)上那份粉
+        一个字不动,SeekBar 的粉色轨道/滑块也不动 —— 它们压在深色上,本来就看得见。
+    -->
+    <color name="glass_accent">#B03A6B</color>
+
+    <!-- 她的桌面图标底色。用她自己那个粉(悬浮球描边、中转站卡片同色)——
+         图标和悬浮球看着得是同一个人。 -->
+    <color name="ic_conmarn_bg">#E05B8E</color>
+
     <!-- 开屏动画 Splash -->
     <color name="splash_bg">#000000</color>
     <color name="splash_text">#FFFFFF</color>
